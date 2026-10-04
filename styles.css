@@ -200,3 +200,23 @@ dialog::backdrop { background: rgba(10, 12, 16, .55); }
 .list-plain li { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .list-plain li:last-child { border-bottom: 0; }
 details > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+
+.tariff .stock { display: block; font-size: .75rem; color: var(--good); margin-top: 2px; }
+.tariff .stock.low { color: var(--warn); }
+.tariff .stock.none { color: var(--bad); }
+ol.small { padding-left: 20px; }
+ol.small li { margin-bottom: 4px; }
+
+/* ---------- Printed tickets ---------- */
+#print { display: none; }
+@media print {
+  @page { size: A4; margin: 8mm; }
+  body { padding: 0; background: #fff; }
+  body > *:not(#print) { display: none !important; }
+  #print { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; color: #000; }
+  .ticket { border: 1px dashed #555; border-radius: 3mm; padding: 3mm; text-align: center; break-inside: avoid; }
+  .t-brand { font-weight: 700; font-size: 10pt; }
+  .t-code { font: 700 15pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: .08em; margin: 1.5mm 0; }
+  .t-plan { font-size: 9pt; }
+  .t-help { font-size: 7pt; color: #333; margin-top: 1mm; }
+}

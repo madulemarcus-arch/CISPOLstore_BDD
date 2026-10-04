@@ -1,5 +1,5 @@
 // Offline cache for the app shell. Bump VERSION whenever an asset changes so phones pick up the update.
-const VERSION = 'cispolstore-v1';
+const VERSION = 'cispolstore-v2';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -38,31 +38,76 @@ await page.click('text=Commencer');
 await page.waitForSelector('text=Nouvelle vente');
 step('setup');
 
-// Sell: 1 h cash, 3 h Mobile Money, 30 min free, Journée with a router-printed code
+// MikroTik mode is on by default: without stock, selling is blocked
+await page.waitForSelector('.notice:has-text("Aucun ticket MikroTik")');
+await page.click('.tariff:has-text("1 heure")');
+await page.click('#sellBtn');
+await page.waitForSelector('.toast.show:has-text("Plus de tickets")');
+step('empty stock blocks sales');
+
+// Generate ticket batches and check the RouterOS script
+await page.evaluate(() => { window.print = () => { window.__printed = document.querySelectorAll('#print .ticket').length; }; });
+await page.click('a[data-tab=tickets]');
+await page.waitForSelector('#batchForm');
+async function batch(label, n) {
+  const value = await page.$eval('#batchForm select[name=tariffId]', (sel, l) => [...sel.options].find(o => o.text.startsWith(l + ' –')).value, label);
+  await page.selectOption('#batchForm select[name=tariffId]', value);
+  await page.fill('#batchForm input[name=count]', String(n));
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#batchForm button.primary')]);
+  assert.match(dl.suggestedFilename(), /^cispol-L\d{8}-\d\d\.rsc$/);
+  const rsc = await readFile(await dl.path(), 'utf8');
+  assert.ok(/^[\x00-\x7e]*$/.test(rsc), 'script must be plain ASCII');
+  const codes = [...rsc.matchAll(/user add name="([a-z2-9]{8})" password="\1"/g)].map(m => m[1]);
+  assert.equal(codes.length, n);
+  return { rsc, codes };
+}
+const h1 = await batch('1 heure', 5);
+assert.ok(h1.rsc.includes('profile="cispol-t1h" limit-uptime=1h'));
+assert.ok(h1.rsc.includes('shared-users=1'));
+assert.ok(h1.rsc.includes('on-error={}'), 're-import must be idempotent');
+await batch('3 heures', 2);
+await batch('30 minutes', 2);
+const day = await batch('Journée', 2);
+assert.ok(day.rsc.includes('limit-uptime=1d') && day.rsc.includes('Journee'));
+await batch('7 jours', 1);
+await page.waitForSelector('text=L' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-05');
+const [login] = await Promise.all([page.waitForEvent('download'), page.click('#dlLogin')]);
+const loginPage = await readFile(await login.path(), 'utf8');
+for (const k of ['$(link-login-only)', '$(if chap-id)', "hexMD5('$(chap-id)'+c+'$(chap-challenge)')", '$(if error)', 'CISPOLstore WiFi'])
+  assert.ok(loginPage.includes(k), `login.html should contain ${k}`);
+assert.match(loginPage, /<td>Journée<\/td><td>2\s000 FC<\/td>/);
+await page.click('li:has-text("1 heure") [data-print]');
+assert.equal(await page.evaluate(() => window.__printed), 5);
+await shot('02-tickets');
+step('ticket batches + script + login page + print');
+
+// Sell from stock: 1 h cash, 3 h Mobile Money, 30 min free, then a printed Journée ticket by code
 async function sell(label, pay, code) {
-  await page.click(`.tariff:has-text("${label}")`);
+  if (label) await page.click(`.tariff:has-text("${label}")`);
   await page.click(`[data-pay=${pay}]`);
-  if (code) { await page.click('summary'); await page.fill('#manualCode', code); }
+  if (code) { await page.click('#manualBox summary'); await page.fill('#manualCode', code); }
   await page.click('#sellBtn');
   await page.waitForSelector('dialog[open] .voucher');
-  const shown = await page.textContent('dialog .voucher .code');
-  if (code) assert.equal(shown, code.toUpperCase());
-  else assert.match(shown, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
-  return shown;
+  return page.textContent('dialog .voucher .code');
 }
-await sell('1 heure', 'cash');
-await shot('02-voucher');
+await page.click('a[data-tab=vendre]');
+await page.waitForSelector('.tariff:has-text("1 heure") .stock:has-text("5 en stock")');
+assert.equal(await sell('1 heure', 'cash'), h1.codes[0], 'first stock ticket is sold first');
+await shot('03-voucher');
 await page.click('[data-m=close]');
+await page.waitForSelector('.tariff:has-text("1 heure") .stock:has-text("4 en stock")');
 await sell('3 heures', 'mm'); await page.click('[data-m=close]');
 await sell('30 minutes', 'free'); await page.click('[data-m=close]');
-await sell('Journée', 'cash', 'ab12-cd34'); await page.click('[data-m=close]');
-await shot('03-vente');
-step('sales recorded');
+assert.equal(await sell(null, 'cash', ' ' + day.codes[1] + ' '), day.codes[1]);
+assert.ok((await page.textContent('dialog .voucher')).includes('Journée'), 'tariff comes from the printed ticket');
+await page.click('[data-m=close]');
+await page.waitForSelector('.tariff:has-text("Journée") .stock:has-text("1 en stock")');
+await shot('04-vente');
+step('sales from stock');
 
-// Duplicate printed code is refused
-await page.click('.tariff:has-text("1 heure")');
-await page.click('summary');
-await page.fill('#manualCode', 'AB12-CD34');
+// A sold code cannot be sold again
+await page.click('#manualBox summary');
+await page.fill('#manualCode', day.codes[1]);
 await page.click('#sellBtn');
 await page.waitForSelector('.toast.show:has-text("déjà été vendu")');
 step('duplicate code refused');
@@ -76,7 +121,7 @@ for (const expected of ['Clients3', 'Recettes cash2 500 FC', 'Recettes Mobile Mo
 await page.fill('#incForm input', 'Coupure électricité 14h-15h');
 await page.click('#incForm button');
 await page.waitForSelector('text=Coupure électricité 14h-15h');
-await shot('04-rapport');
+await shot('05-rapport');
 // Void the 1 h sale -> totals drop by 500
 await page.click('tr:has-text("1 heure") [data-void]');
 await page.waitForSelector('tr.void');
@@ -88,7 +133,7 @@ await page.click('a[data-tab=tableau]');
 await page.waitForSelector('#chart svg .bar');
 await page.hover('#chart .hit[data-i="' + (new Date().getDate() - 1) + '"]');
 await page.waitForSelector('.tooltip:not([hidden])');
-await shot('05-tableau');
+await shot('06-tableau');
 step('dashboard');
 
 // Add an agent with PIN 4321
@@ -98,7 +143,7 @@ await page.fill('#agentForm input[name=name]', 'Grace');
 await page.fill('#agentForm input[name=pin]', '4321');
 await page.click('#agentForm button.primary');
 await page.waitForSelector('td:has-text("Grace")');
-await shot('06-reglages');
+await shot('07-reglages');
 step('agent created');
 
 // Exports
@@ -109,6 +154,8 @@ assert.equal(csvText.trim().split('\r\n').length, 5); // header + 4 sales (voide
 const [backup] = await Promise.all([page.waitForEvent('download'), page.click('#expBackup')]);
 const json = JSON.parse(await readFile(await backup.path(), 'utf8'));
 assert.equal(json.sales.length, 4); assert.equal(json.agents.length, 2);
+assert.equal(json.tickets.length, 12);
+assert.deepEqual(['sold', 'stock', 'void'].map(st => json.tickets.filter(t => t.status === st).length), [3, 8, 1]); // voided 1 h sale -> ticket void
 assert.ok(!JSON.stringify(json.agents).includes('4321'), 'PIN must not be stored in clear');
 step('exports');
 
@@ -118,7 +165,7 @@ await page.click('[data-m=lock]');
 await page.click('[data-agent]:has-text("Grace")');
 for (const k of '9999') await page.click(`[data-key="${k}"]`);
 await page.waitForSelector('#pinMsg:has-text("PIN incorrect")');
-await shot('07-pin');
+await shot('08-pin');
 for (const k of '4321') await page.click(`[data-key="${k}"]`);
 await page.waitForSelector('text=Nouvelle vente');
 assert.ok(await page.isHidden('a[data-tab=tableau]'), 'agents must not see the dashboard');

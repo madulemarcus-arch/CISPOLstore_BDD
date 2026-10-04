@@ -16,10 +16,11 @@ PWA hors ligne de gestion des Wi-Fi Zones CISPOLstore (vente de vouchers, rappor
 
 Une IIFE découpée en sections `// ---------- X ----------` :
 
-- **Storage** : IndexedDB `cispolstore` (stores `meta`, `agents`, `zones`, `sales`, `incidents`, clé `id`), chargé entièrement en mémoire dans `db` au démarrage. Chaque écriture fait `put()` en base puis met à jour `db`. Les réglages sont un seul document `meta/settings` (tarifs, charges, taux, panier moyen, `launchMonth`, `targets`).
+- **Storage** : IndexedDB `cispolstore` version 2 (stores `meta`, `agents`, `zones`, `sales`, `incidents`, `tickets`, clé `id`), chargé entièrement en mémoire dans `db` au démarrage. Chaque écriture fait `put()` en base puis met à jour `db`. Les réglages sont un seul document `meta/settings` (tarifs, charges, taux, panier moyen, `launchMonth`, `targets`).
 - **Domain** : `salesWhere()` filtre (exclut les ventes annulées sauf `includeVoid`) et `summarize()` calcule clients, cash, mm, gratuits et `byTariff`. Une vente copie `tariffLabel`, `price` et `minutes` au moment de la vente, donc modifier la grille ne change pas l'historique. `byTariff` est indexé par libellé. Seuil de rentabilité = `ceil(charges mensuelles / (panier moyen × 30))`, multiplié par le nombre de zones quand on regarde « Toutes les zones ».
 - **Session & PIN** : PIN haché (SHA-256 + sel, repli FNV hors contexte sécurisé), `pinLen` stocké pour la saisie automatique, blocage de 30 s après 5 échecs, verrouillage après 5 min d'inactivité (`sessionStorage`).
-- **Router** : `location.hash` (`#/vendre`, `#/rapport`, `#/tableau`, `#/reglages`). Chaque écran est une fonction `renderX()` qui réécrit `#view` en template strings puis rebranche ses écouteurs. L'état d'interface entre deux rendus est dans `ui`. `#/tableau` et `#/reglages` sont réservés au rôle `gerant` (contrôle dans `route()`).
+- **Tickets MikroTik** : un ticket (`tickets`) a un `status` `stock` → `sold` (à la vente, `saleId`) ou `void` (vente annulée : jamais remis en stock). Les lots sont regroupés par `batchId`/`batchLabel` (`L<AAAAMMJJ>-NN`). Si `settings.mikrotik.enabled`, `renderSell()` prend le plus ancien ticket en stock de la zone et du forfait. Un code saisi à la main qui correspond à un ticket impose son forfait. `rscFor()` génère le script RouterOS : profil `cispol-<idForfait>` (`shared-users=1`, `rate-limit` facultatif), puis un `:do { /ip hotspot user add … limit-uptime=… } on-error={}` par ticket pour qu'une réimportation soit sans effet. Tout ce qui part au routeur passe par `ascii()`/`rosStr()` (RouterOS gère mal l'UTF-8). `loginHtml()` produit la page `hotspot/login.html` (variables `$(…)` de MikroTik, connexion CHAP via `/md5.js` du routeur, mot de passe = code).
+- **Router** : `location.hash` (`#/vendre`, `#/rapport`, `#/tickets`, `#/tableau`, `#/reglages`). Chaque écran est une fonction `renderX()` qui réécrit `#view` en template strings puis rebranche ses écouteurs. L'état d'interface entre deux rendus est dans `ui`. `#/tickets`, `#/tableau` et `#/reglages` sont réservés au rôle `gerant` (contrôle dans `route()`).
 - **Export** : CSV avec séparateur `;` et BOM pour Excel en français, et sauvegarde JSON (`app: 'cispolstore-gestion'`) que `restoreBackup()` vérifie.
 
 ## Points d'attention
@@ -28,6 +29,8 @@ Une IIFE découpée en sections `// ---------- X ----------` :
 - Après toute modification d'un fichier listé dans `ASSETS`, incrémenter `VERSION` dans `sw.js`, sinon les téléphones gardent l'ancienne version en cache.
 - Les dates des ventes sont stockées en `day` local (`YYYY-MM-DD`) et `at` ISO. Les rapports filtrent sur `day`.
 - Les annulations ne suppriment rien : `void`, `voidReason`, `voidAt`, `voidBy`.
+- Un changement de schéma IndexedDB demande d'incrémenter la version dans `openDb()` et de migrer les réglages au démarrage (voir le bloc « data created by v1 » dans Boot).
+- Les scripts `.rsc` et `login.html` ne peuvent pas être testés ici sans routeur : le test e2e vérifie leur contenu, pas leur exécution par RouterOS.
 
 ## Conventions
 

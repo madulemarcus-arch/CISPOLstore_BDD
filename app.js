@@ -13,7 +13,7 @@
     { id: 't30d', label: '30 jours', minutes: 30 * DAY, price: 15000 },
     { id: 's7d', label: 'Student semaine', minutes: 7 * DAY, price: 5000, student: true },
     { id: 's30d', label: 'Student mois', minutes: 30 * DAY, price: 15000, student: true },
-  ].map(t => ({ student: false, active: true, ...t }));
+  ].map(t => ({ student: false, active: true, rateLimit: '', ...t }));
 
   const DEFAULT_CHARGES = [
     { label: 'Internet (Starlink)', amount: 250000 },
@@ -27,6 +27,9 @@
 
   const DEFAULT_TARGETS = [50, 65, 80, 90, 100, 110, 120, 130, 140, 150, 165, 180];
   const PAYMENTS = { cash: 'Cash', mm: 'Mobile Money', free: 'Gratuit' };
+  const DEFAULT_MIKROTIK = { enabled: true, ssid: 'CISPOLstore WiFi' };
+  const TICKET_STATUS = { stock: 'En stock', sold: 'Vendu', void: 'Annulé' };
+  const MAX_BATCH = 500;
   const LOCK_AFTER_MS = 5 * 60 * 1000;
   const MAX_PIN_TRIES = 5;
 
@@ -52,6 +55,15 @@
 
   // Unambiguous alphabet (no 0/O, 1/I/L) so codes can be read aloud or copied by hand
   const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  // Hotspot tickets: lowercase, no separator, so they are easy to type on a phone keyboard
+  const TICKET_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+  function newTicketCode(taken) {
+    for (;;) {
+      const bytes = crypto.getRandomValues(new Uint8Array(8));
+      const c = Array.from(bytes, b => TICKET_ALPHABET[b % TICKET_ALPHABET.length]).join('');
+      if (!taken.has(c)) { taken.add(c); return c; }
+    }
+  }
   function newCode() {
     const bytes = crypto.getRandomValues(new Uint8Array(8));
     const s = Array.from(bytes, b => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
@@ -96,12 +108,12 @@
   }
 
   // ---------- Storage (IndexedDB, everything cached in memory) ----------
-  const STORES = ['meta', 'agents', 'zones', 'sales', 'incidents'];
+  const STORES = ['meta', 'agents', 'zones', 'sales', 'incidents', 'tickets'];
   let idb = null;
 
   function openDb() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open('cispolstore', 1);
+      const req = indexedDB.open('cispolstore', 2);
       req.onupgradeneeded = () => {
         for (const s of STORES) if (!req.result.objectStoreNames.contains(s)) req.result.createObjectStore(s, { keyPath: 'id' });
       };
@@ -118,21 +130,24 @@
   const getAll = store => tx(store, 'readonly', s => s.getAll());
   const put = (store, obj) => tx(store, 'readwrite', s => s.put(obj));
   const clearStore = store => tx(store, 'readwrite', s => s.clear());
+  const putMany = (store, list) => tx(store, 'readwrite', s => { for (const o of list) s.put(o); });
 
-  const db = { settings: null, agents: [], zones: [], sales: [], incidents: [] };
+  const db = { settings: null, agents: [], zones: [], sales: [], incidents: [], tickets: [] };
 
   function defaultSettings() {
     return {
       id: 'settings', businessName: 'CISPOLstore', rate: 2300, avgBasket: 750,
       launchMonth: monthKey(new Date()), targets: DEFAULT_TARGETS.slice(),
       charges: DEFAULT_CHARGES.map(c => ({ ...c })), tariffs: DEFAULT_TARIFFS.map(t => ({ ...t })),
+      mikrotik: { ...DEFAULT_MIKROTIK },
     };
   }
 
   async function loadAll() {
-    const [meta, agents, zones, sales, incidents] = await Promise.all(STORES.map(getAll));
+    const [meta, agents, zones, sales, incidents, tickets] = await Promise.all(STORES.map(getAll));
     db.settings = meta.find(m => m.id === 'settings') || null;
     db.agents = agents; db.zones = zones; db.incidents = incidents;
+    db.tickets = tickets.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.n - b.n);
     db.sales = sales.sort((a, b) => a.at.localeCompare(b.at));
   }
   const saveSettings = () => put('meta', db.settings);
@@ -174,15 +189,25 @@
     return { clients: paid.length, free: list.length - paid.length, cash, mm, total: cash + mm, byTariff };
   }
 
-  async function recordSale({ tariff, payment, zoneId, code }) {
+  const mikrotikOn = () => !!db.settings.mikrotik?.enabled;
+  const stockOf = (zoneId, tariffId) => db.tickets.filter(t => t.status === 'stock' && t.zoneId === zoneId && (!tariffId || t.tariffId === tariffId));
+  const allCodes = () => new Set([...db.tickets.map(t => t.code), ...db.sales.map(s => s.code)]);
+
+  // ticket: a stock ticket to mark as sold (its code becomes the sale code)
+  async function recordSale({ tariff, payment, zoneId, code, ticket }) {
     const now = new Date();
+    if (ticket) code = ticket.code;
     const sale = {
-      id: uid(), code: code || newCode(), tariffId: tariff.id, tariffLabel: tariff.label,
+      id: uid(), code: code || newCode(), ticketId: ticket?.id || null, tariffId: tariff.id, tariffLabel: tariff.label,
       minutes: tariff.minutes, price: payment === 'free' ? 0 : tariff.price, listPrice: tariff.price,
       payment, zoneId, agentId: session.agentId,
       at: now.toISOString(), day: dayKey(now),
       expires: new Date(now.getTime() + tariff.minutes * 60000).toISOString(), void: false,
     };
+    if (ticket) {
+      Object.assign(ticket, { status: 'sold', saleId: sale.id, soldAt: sale.at });
+      await put('tickets', ticket);
+    }
     await put('sales', sale);
     db.sales.push(sale);
     return sale;
@@ -244,6 +269,7 @@
     sell: { tariffId: null, payment: 'cash', zoneId: null },
     report: { day: null, zoneId: '' },
     dash: { month: null, zoneId: '' },
+    tickets: { zoneId: '' },
   };
 
   function route() {
@@ -258,9 +284,9 @@
     document.querySelectorAll('[data-role="gerant"]').forEach(el => { el.hidden = !isManager(); });
 
     let tab = (location.hash.match(/^#\/(\w+)/) || [])[1] || 'vendre';
-    if (!isManager() && (tab === 'tableau' || tab === 'reglages')) tab = 'vendre';
+    if (!isManager() && ['tableau', 'reglages', 'tickets'].includes(tab)) tab = 'vendre';
     document.querySelectorAll('.tabbar a').forEach(a => a.classList.toggle('active', a.dataset.tab === tab));
-    ({ vendre: renderSell, rapport: renderReport, tableau: renderDashboard, reglages: renderSettings }[tab] || renderSell)();
+    ({ vendre: renderSell, rapport: renderReport, tickets: renderTickets, tableau: renderDashboard, reglages: renderSettings }[tab] || renderSell)();
   }
   window.addEventListener('hashchange', route);
 
@@ -379,27 +405,31 @@
     const mine = salesWhere({ day: today(), agentId: me().id });
     const sum = summarize(mine);
     const last = mine.slice(-5).reverse();
+    const mk = mikrotikOn();
+    const stock = id => stockOf(st.zoneId, id).length;
 
     view.innerHTML = `
       <div class="card stack">
         <div class="row between"><h1>Nouvelle vente</h1>
           ${isManager() && activeZones().length > 1 ? `<div style="min-width:160px">${zoneSelect('zone', st.zoneId)}</div>` : `<span class="muted small">📍 ${esc(zoneName(st.zoneId))}</span>`}
         </div>
+        ${mk && !stockOf(st.zoneId).length ? `<p class="notice">Aucun ticket MikroTik en stock pour cette zone. ${isManager() ? 'Générez un lot dans <a href="#/tickets">Tickets</a>.' : 'Demandez au gérant de générer un lot.'} En attendant, vous pouvez saisir le code d’un ticket imprimé.</p>` : ''}
         <h3>Forfait</h3>
         <div class="tariffs">
           ${tariffs.map(t => `<button class="tariff" data-tariff="${t.id}" aria-pressed="${t.id === st.tariffId}">
-            <b>${esc(t.label)}${t.student ? '<span class="tag">Étudiant</span>' : ''}</b><span class="price">${fc(t.price)}</span></button>`).join('')}
+            <b>${esc(t.label)}${t.student ? '<span class="tag">Étudiant</span>' : ''}</b><span class="price">${fc(t.price)}</span>
+            ${mk ? `<span class="stock ${stock(t.id) ? (stock(t.id) < 10 ? 'low' : '') : 'none'}">${stock(t.id)} en stock</span>` : ''}</button>`).join('')}
         </div>
         <h3>Paiement</h3>
         <div class="seg" role="group" aria-label="Mode de paiement">
           ${Object.entries(PAYMENTS).map(([k, l]) => `<button data-pay="${k}" aria-pressed="${k === st.payment}">${l}</button>`).join('')}
         </div>
-        <details>
-          <summary class="small">Code du voucher imprimé (facultatif)</summary>
-          <p class="small muted">Si vous vendez un ticket déjà généré par le routeur, saisissez son code. Sinon, un code est créé automatiquement.</p>
-          <input id="manualCode" class="code" autocomplete="off" autocapitalize="characters" placeholder="ex. 7K3M-PQ2X">
+        <details ${st.manualOpen ? 'open' : ''} id="manualBox">
+          <summary class="small">Vendre un ticket imprimé (saisir son code)</summary>
+          <p class="small muted">${mk ? 'Saisissez le code inscrit sur le ticket : le forfait est repris automatiquement.' : 'Si vous vendez un ticket déjà généré par le routeur, saisissez son code. Sinon, un code est créé automatiquement.'}</p>
+          <input id="manualCode" class="code" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="ex. k7qm3xpa">
         </details>
-        <button class="btn primary block big" id="sellBtn" ${st.tariffId ? '' : 'disabled'}>${sellLabel()}</button>
+        <button class="btn primary block big" id="sellBtn" ${st.tariffId || st.manualOpen ? '' : 'disabled'}>${sellLabel()}</button>
       </div>
       <div class="card">
         <div class="row between"><h2>Mes ventes aujourd’hui</h2><span class="status ${sum.clients >= breakEven() ? 'good' : 'warn'}">${sum.clients} client${sum.clients > 1 ? 's' : ''}</span></div>
@@ -416,29 +446,49 @@
 
     function sellLabel() {
       const t = tariffs.find(x => x.id === st.tariffId);
-      if (!t) return 'Choisissez un forfait';
+      if (!t) return st.manualOpen ? 'Vendre le ticket saisi' : 'Choisissez un forfait';
       return st.payment === 'free' ? `Offrir ${t.label}` : `Encaisser ${fc(t.price)} · ${PAYMENTS[st.payment]}`;
     }
     view.querySelectorAll('[data-tariff]').forEach(b => b.addEventListener('click', () => { st.tariffId = b.dataset.tariff; renderSell(); }));
     view.querySelectorAll('[data-pay]').forEach(b => b.addEventListener('click', () => { st.payment = b.dataset.pay; renderSell(); }));
-    view.querySelector('select[name=zone]')?.addEventListener('change', e => { st.zoneId = e.target.value; });
+    view.querySelector('select[name=zone]')?.addEventListener('change', e => { st.zoneId = e.target.value; renderSell(); });
+    // Update the button in place: re-rendering here would wipe a code typed right after opening the box
+    $('#manualBox').addEventListener('toggle', e => {
+      st.manualOpen = e.target.open;
+      $('#sellBtn').textContent = sellLabel();
+      $('#sellBtn').disabled = !st.tariffId && !st.manualOpen;
+      if (st.manualOpen) $('#manualCode').focus();
+    });
     $('#sellBtn').addEventListener('click', async () => {
-      const t = tariffs.find(x => x.id === st.tariffId);
-      if (!t) return;
-      const manual = $('#manualCode').value.trim().toUpperCase();
-      if (manual && db.sales.some(s => s.code === manual && !s.void)) return toast('Ce code a déjà été vendu');
+      const manual = $('#manualCode').value.replace(/\s+/g, '');
+      let t = tariffs.find(x => x.id === st.tariffId);
+      let ticket = null;
+      if (manual) {
+        if (db.sales.some(s => s.code === manual && !s.void)) return toast('Ce code a déjà été vendu');
+        ticket = db.tickets.find(x => x.code === manual);
+        if (ticket) {
+          if (ticket.status !== 'stock') return toast(`Ce ticket est ${TICKET_STATUS[ticket.status].toLowerCase()}`);
+          if (ticket.zoneId !== st.zoneId) return toast(`Ce ticket appartient à la zone ${zoneName(ticket.zoneId)}`);
+          t = db.settings.tariffs.find(x => x.id === ticket.tariffId) || t;
+        } else if (!t) return toast('Code inconnu : choisissez aussi le forfait');
+      } else if (!t) return;
+      else if (mikrotikOn()) {
+        ticket = stockOf(st.zoneId, t.id)[0];
+        if (!ticket) return toast(`Plus de tickets « ${t.label} » en stock`);
+      }
       $('#sellBtn').disabled = true;
-      const sale = await recordSale({ tariff: t, payment: st.payment, zoneId: st.zoneId, code: manual });
-      st.payment = 'cash';
+      const sale = await recordSale({ tariff: t, payment: st.payment, zoneId: st.zoneId, code: manual, ticket });
+      st.payment = 'cash'; st.manualOpen = false;
       renderSell();
       showVoucher(sale);
     });
   }
 
   function voucherText(s) {
-    return `${db.settings.businessName} WiFi\nCode : ${s.code}\nForfait : ${s.tariffLabel} (${fmtDuration(s.minutes)})\n` +
+    const ssid = db.settings.mikrotik?.ssid || `${db.settings.businessName} WiFi`;
+    return `${ssid}\nCode : ${s.code}\nForfait : ${s.tariffLabel} (${fmtDuration(s.minutes)} de connexion)\n` +
       `${s.payment === 'free' ? 'Offert' : 'Prix : ' + fc(s.price)}\nVendu le ${fmtDateTime(s.at)} – ${zoneName(s.zoneId)}\n` +
-      `Connectez-vous au réseau « ${db.settings.businessName} WiFi » et saisissez le code.`;
+      `Connectez-vous au réseau « ${ssid} » et saisissez le code.`;
   }
 
   function showVoucher(s) {
@@ -448,7 +498,7 @@
         <div class="muted small">Code d’accès</div>
         <div class="code">${esc(s.code)}</div>
         <div>${esc(s.tariffLabel)} · ${s.payment === 'free' ? 'Gratuit' : fc(s.price) + ' · ' + PAYMENTS[s.payment]}</div>
-        <div class="muted small">Valable jusqu’au ${fmtDateTime(s.expires)} au plus tard</div>
+        <div class="muted small">${mikrotikOn() ? `${fmtDuration(s.minutes)} de connexion sur « ${esc(db.settings.mikrotik.ssid)} »` : `Valable jusqu’au ${fmtDateTime(s.expires)} au plus tard`}</div>
       </div>
       <div class="grid2">
         <button class="btn" data-m="copy">📋 Copier</button>
@@ -558,8 +608,231 @@
       const reason = prompt(`Annuler la vente ${s.code} (${s.tariffLabel}, ${fc(s.price)}) ?\nMotif :`);
       if (reason === null) return;
       Object.assign(s, { void: true, voidReason: reason.trim(), voidAt: new Date().toISOString(), voidBy: me().id });
+      // The code may already be in the customer's hands: never put it back in stock
+      const ticket = db.tickets.find(t => t.id === s.ticketId);
+      if (ticket) { ticket.status = 'void'; await put('tickets', ticket); }
       await put('sales', s); toast('Vente annulée'); renderReport();
     }));
+  }
+
+  // ---------- Screen: MikroTik tickets (manager) ----------
+  // RouterOS time value, e.g. 90 -> "1h30m", 4320 -> "3d"
+  const rosTime = min => [[Math.floor(min / DAY), 'd'], [Math.floor(min % DAY / 60), 'h'], [min % 60, 'm']]
+    .filter(([v]) => v).map(([v, u]) => v + u).join('') || '0m';
+  // RouterOS mangles non-ASCII text: strip accents ("Journée" -> "Journee") before writing to the router
+  const ascii = v => String(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '?');
+  const rosStr = v => '"' + ascii(v).replace(/[\\"$]/g, c => '\\' + c) + '"';
+  const profileName = t => 'cispol-' + t.id.replace(/[^\w-]/g, '');
+
+  function batches(zoneId) {
+    const map = new Map();
+    for (const t of db.tickets) {
+      if (zoneId && t.zoneId !== zoneId) continue;
+      const b = map.get(t.batchId) || { id: t.batchId, label: t.batchLabel, zoneId: t.zoneId, tariffId: t.tariffId, tariffLabel: t.tariffLabel, createdAt: t.createdAt, tickets: [] };
+      b.tickets.push(t); map.set(t.batchId, b);
+    }
+    return [...map.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async function createBatch(zoneId, tariff, count) {
+    const now = new Date().toISOString();
+    const sameDay = new Set(db.tickets.filter(t => t.createdAt.slice(0, 10) === now.slice(0, 10)).map(t => t.batchId)).size;
+    const label = `L${now.slice(0, 10).replace(/-/g, '')}-${pad(sameDay + 1)}`;
+    const batchId = uid(), taken = allCodes();
+    const list = Array.from({ length: count }, (_, n) => ({
+      id: uid() + n, n, code: newTicketCode(taken), batchId, batchLabel: label, zoneId,
+      tariffId: tariff.id, tariffLabel: tariff.label, minutes: tariff.minutes, price: tariff.price,
+      status: 'stock', createdAt: now, createdBy: me().id,
+    }));
+    await putMany('tickets', list);
+    db.tickets.push(...list);
+    return batches().find(b => b.id === batchId);
+  }
+
+  function rscFor(batch) {
+    const t = db.settings.tariffs.find(x => x.id === batch.tariffId) || { id: batch.tariffId, rateLimit: '' };
+    const prof = profileName(t);
+    const lines = [
+      `# ${db.settings.businessName} - tickets Hotspot MikroTik`,
+      `# Lot ${batch.label} - zone ${zoneName(batch.zoneId)} - ${batch.tickets.length} tickets "${batch.tariffLabel}" (${rosTime(batch.tickets[0].minutes)} de connexion)`,
+      `# Genere le ${fmtDateTime(batch.createdAt)} par CISPOLstore Gestion`,
+      `# Import : glisser ce fichier dans Winbox > Files, puis dans New Terminal :`,
+      `#   /import file-name=cispol-${batch.label}.rsc`,
+      `# Reimporter le meme fichier ne cree pas de doublons.`,
+      ``,
+      `:if ([:len [/ip hotspot user profile find where name=${rosStr(prof)}]] = 0) do={ /ip hotspot user profile add name=${rosStr(prof)} }`,
+      `/ip hotspot user profile set [find where name=${rosStr(prof)}] shared-users=1${t.rateLimit ? ` rate-limit=${rosStr(t.rateLimit)}` : ''}`,
+      ...batch.tickets.map(k => `:do { /ip hotspot user add name=${rosStr(k.code)} password=${rosStr(k.code)} profile=${rosStr(prof)} limit-uptime=${rosTime(k.minutes)} comment=${rosStr(`CISPOL ${batch.label} ${batch.tariffLabel}`)} } on-error={}`),
+      `:log info ${rosStr(`CISPOL ${batch.label} : ${batch.tickets.length} tickets importes`)}`,
+      ``,
+    ];
+    return lines.map(l => l.startsWith('#') ? ascii(l) : l).join('\r\n');
+  }
+
+  function downloadRsc(batch) { download(`cispol-${batch.label}.rsc`, rscFor(batch), 'text/plain'); }
+
+  function batchCsv(batch) {
+    const rows = [['Code', 'Forfait', 'Durée de connexion', 'Prix (FC)', 'Zone', 'Lot', 'Statut']];
+    for (const k of batch.tickets) rows.push([k.code, k.tariffLabel, fmtDuration(k.minutes), k.price, zoneName(k.zoneId), batch.label, TICKET_STATUS[k.status]]);
+    download(`cispol-${batch.label}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
+  }
+
+  function printTickets(list) {
+    const ssid = db.settings.mikrotik.ssid;
+    let box = $('#print');
+    if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.append(box); }
+    box.innerHTML = list.map(k => `<div class="ticket">
+      <div class="t-brand">${esc(db.settings.businessName)}</div>
+      <div class="t-code">${esc(k.code)}</div>
+      <div class="t-plan">${esc(k.tariffLabel)} · ${fc(k.price)}</div>
+      <div class="t-help">Wi-Fi « ${esc(ssid)} » → saisir le code</div></div>`).join('');
+    window.print();
+  }
+
+  function loginHtml() {
+    const s = db.settings, ssid = esc(s.mikrotik.ssid);
+    const rows = activeTariffs().map(t => `<tr><td>${esc(t.label)}</td><td>${nf.format(t.price)} FC</td></tr>`).join('');
+    // MikroTik substitutes $(...) variables when serving the page; keep everything inline (no internet before login)
+    return `<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="pragma" content="no-cache"><meta http-equiv="expires" content="-1">
+<title>${ssid}</title>
+<style>
+body{margin:0;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f4f5f7;color:#14171c}
+main{max-width:420px;margin:0 auto;padding:24px 16px}
+.card{background:#fff;border:1px solid #dde1e7;border-radius:16px;padding:20px;margin-bottom:14px}
+h1{margin:0 0 4px;font-size:1.4rem;color:#1f5fb0}p{margin:0 0 14px;color:#4d5562}
+input{width:100%;box-sizing:border-box;font:inherit;font-size:1.3rem;letter-spacing:.08em;text-align:center;padding:12px;border:1px solid #c9ced6;border-radius:12px;margin-bottom:12px}
+button{width:100%;font:inherit;font-weight:700;padding:14px;border:0;border-radius:12px;background:#1f5fb0;color:#fff}
+.err{background:#fbe5e5;color:#b42323;border-radius:10px;padding:10px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:.95rem}td{padding:6px 0;border-bottom:1px solid #eef1f5}td+td{text-align:right;font-weight:600}
+small{display:block;text-align:center;color:#7a8290;margin-top:8px}
+</style></head><body>
+$(if chap-id)
+<form name="sendin" action="$(link-login-only)" method="post" style="display:none">
+<input type="hidden" name="username"><input type="hidden" name="password">
+<input type="hidden" name="dst" value="$(link-orig)"><input type="hidden" name="popup" value="true">
+</form>
+<script src="/md5.js"></script>
+$(endif)
+<main>
+<div class="card">
+<h1>${esc(s.businessName)}</h1>
+<p>Bienvenue sur le Wi-Fi « ${ssid} ». Saisissez le code de votre ticket.</p>
+$(if error)<div class="err">$(error)</div>$(endif)
+<form name="login" action="$(link-login-only)" method="post" onsubmit="return go()">
+<input type="hidden" name="dst" value="$(link-orig)"><input type="hidden" name="popup" value="true">
+<input type="hidden" name="password">
+<input name="username" value="$(username)" placeholder="Code du ticket" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+<button type="submit">Se connecter</button>
+</form>
+</div>
+<div class="card"><p><b>Nos forfaits</b> (temps de connexion)</p><table>${rows}</table>
+<small>Tickets en vente auprès de nos agents · Cash ou Mobile Money</small></div>
+</main>
+<script>
+function go(){
+  var f=document.login, c=f.username.value.replace(/\\s+/g,'');
+  f.username.value=c; f.password.value=c;
+  $(if chap-id)
+  document.sendin.username.value=c;
+  document.sendin.password.value=hexMD5('$(chap-id)'+c+'$(chap-challenge)');
+  document.sendin.submit(); return false;
+  $(endif)
+  return true;
+}
+</script>
+</body></html>
+`;
+  }
+
+  function renderTickets() {
+    const st = ui.tickets;
+    const mk = db.settings.mikrotik;
+    if (st.zoneId && !activeZones().some(z => z.id === st.zoneId)) st.zoneId = '';
+    const zoneId = st.zoneId || (activeZones().length === 1 ? activeZones()[0].id : '');
+    const list = db.tickets.filter(t => !zoneId || t.zoneId === zoneId);
+    const count = (tid, status) => list.filter(t => t.tariffId === tid && t.status === status).length;
+    const shownTariffs = db.settings.tariffs.filter(t => t.active || list.some(k => k.tariffId === t.id));
+    const bs = batches(zoneId);
+
+    view.innerHTML = `
+      <div class="card stack">
+        <h1>Tickets MikroTik</h1>
+        <label class="row small" style="flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="mkOn" ${mk.enabled ? 'checked' : ''} style="width:auto"> Vendre uniquement des tickets créés dans le routeur (stock)</label>
+        <form id="mkForm" class="row">
+          <label class="field" style="flex:1;min-width:180px"><span>Nom du réseau Wi-Fi (SSID)</span><input name="ssid" value="${esc(mk.ssid)}" required></label>
+          <button class="btn" style="align-self:flex-end">Enregistrer</button>
+        </form>
+        ${activeZones().length > 1 ? `<label class="field"><span>Zone</span>${zoneSelect('tkZone', st.zoneId, { allowAll: true })}</label>` : ''}
+      </div>
+
+      <div class="card">
+        <h2>Stock${zoneId ? ' · ' + esc(zoneName(zoneId)) : ''}</h2>
+        <div class="table-wrap"><table><thead><tr><th>Forfait</th><th class="num">En stock</th><th class="num">Vendus</th><th class="num">Annulés</th></tr></thead><tbody>
+          ${shownTariffs.map(t => { const n = count(t.id, 'stock'); return `<tr><td>${esc(t.label)}</td>
+            <td class="num">${n ? n : ''} ${n < 10 ? `<span class="status ${n ? 'warn' : 'bad'}">${n ? 'Bas' : 'Vide'}</span>` : ''}</td>
+            <td class="num">${count(t.id, 'sold')}</td><td class="num">${count(t.id, 'void')}</td></tr>`; }).join('')}
+        </tbody></table></div>
+      </div>
+
+      <form class="card stack" id="batchForm">
+        <h2>Générer un lot</h2>
+        <div class="grid3">
+          ${activeZones().length > 1 ? `<label class="field"><span>Zone</span>${zoneSelect('zoneId', zoneId || me().zoneId)}</label>` : ''}
+          <label class="field"><span>Forfait</span><select name="tariffId">${activeTariffs().map(t => `<option value="${t.id}">${esc(t.label)} – ${fc(t.price)}</option>`).join('')}</select></label>
+          <label class="field"><span>Quantité</span><input name="count" type="number" min="1" max="${MAX_BATCH}" value="50" required></label>
+        </div>
+        <button class="btn primary">Générer et télécharger le script MikroTik</button>
+        <details><summary class="small">Comment importer le script dans le MikroTik ?</summary>
+          <ol class="small">
+            <li>Ouvrez <b>Winbox</b> (ou l’appli MikroTik Pro sur téléphone) et connectez-vous au routeur.</li>
+            <li>Menu <b>Files</b> : glissez-y le fichier <span class="code">cispol-…rsc</span> téléchargé.</li>
+            <li>Menu <b>New Terminal</b> : tapez <span class="code">/import file-name=cispol-…rsc</span> (avec le vrai nom du fichier) puis Entrée.</li>
+            <li>Vérifiez dans <b>IP → Hotspot → Users</b> que les tickets apparaissent.</li>
+          </ol>
+          <p class="small muted">Chaque ticket : 1 appareil à la fois, temps décompté seulement pendant la connexion. Les tickets sont valables dès l’import : gardez les tickets imprimés en lieu sûr.</p>
+        </details>
+      </form>
+
+      <div class="card stack">
+        <h2>Page de connexion du Wi-Fi</h2>
+        <p class="small muted">Page aux couleurs de ${esc(db.settings.businessName)} avec vos tarifs, que le client voit en se connectant. À mettre dans le routeur à la place de <span class="code">hotspot/login.html</span> (menu Files). Retéléchargez-la après un changement de prix.</p>
+        <button class="btn" id="dlLogin">⬇️ Télécharger login.html</button>
+      </div>
+
+      <div class="card">
+        <h2>Lots générés</h2>
+        ${bs.length ? `<ul class="list-plain">${bs.map(b => { const left = b.tickets.filter(k => k.status === 'stock').length; return `<li class="stack">
+          <div class="row between"><span><b>${esc(b.label)}</b> · ${esc(b.tariffLabel)} · ${b.tickets.length} tickets</span><span class="muted small">${fmtDateTime(b.createdAt)}${zoneId ? '' : ' · ' + esc(zoneName(b.zoneId))}</span></div>
+          <div class="small muted">${left} en stock · ${b.tickets.length - left} vendus ou annulés</div>
+          <div class="row"><button class="btn sm" data-rsc="${b.id}">Script MikroTik</button><button class="btn sm" data-print="${b.id}">🖨️ Imprimer</button><button class="btn sm" data-csv="${b.id}">CSV</button></div></li>`; }).join('')}</ul>`
+          : '<p class="muted small">Aucun lot pour l’instant.</p>'}
+      </div>`;
+
+    const byId = id => batches().find(b => b.id === id);
+    $('#mkOn').onchange = async e => { mk.enabled = e.target.checked; await saveSettings(); toast(mk.enabled ? 'Ventes depuis le stock activées' : 'Codes libres autorisés'); };
+    $('#mkForm').addEventListener('submit', async e => { e.preventDefault(); mk.ssid = e.target.ssid.value.trim() || mk.ssid; await saveSettings(); toast('Enregistré'); renderTickets(); });
+    view.querySelector('select[name=tkZone]')?.addEventListener('change', e => { st.zoneId = e.target.value; renderTickets(); });
+    $('#batchForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const tariff = db.settings.tariffs.find(t => t.id === f.get('tariffId'));
+      const n = Math.floor(+f.get('count'));
+      if (!tariff || !(n >= 1 && n <= MAX_BATCH)) return toast(`Quantité entre 1 et ${MAX_BATCH}`);
+      const batch = await createBatch(f.get('zoneId') || zoneId || me().zoneId || activeZones()[0].id, tariff, n);
+      downloadRsc(batch);
+      toast(`Lot ${batch.label} : ${n} tickets créés`);
+      renderTickets();
+    });
+    $('#dlLogin').onclick = () => download('login.html', loginHtml(), 'text/html');
+    view.querySelectorAll('[data-rsc]').forEach(b => b.onclick = () => downloadRsc(byId(b.dataset.rsc)));
+    view.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => batchCsv(byId(b.dataset.csv)));
+    view.querySelectorAll('[data-print]').forEach(b => b.onclick = () => {
+      const left = byId(b.dataset.print).tickets.filter(k => k.status === 'stock');
+      if (!left.length) return toast('Plus aucun ticket en stock dans ce lot');
+      printTickets(left);
+    });
   }
 
   // ---------- Screen: dashboard (manager) ----------
@@ -723,12 +996,13 @@
 
       <form class="card stack" id="tariffForm">
         <h2>Grille tarifaire</h2>
-        <p class="small muted">Les prix sont des hypothèses de lancement (§4.2) : ajustez-les selon le marché. Les ventes passées gardent leur prix.</p>
-        <div class="table-wrap"><table><thead><tr><th>Actif</th><th>Forfait</th><th>Durée (min)</th><th class="num">Prix (FC)</th></tr></thead><tbody>
+        <p class="small muted">Les prix sont des hypothèses de lancement (§4.2) : ajustez-les selon le marché. Les ventes passées gardent leur prix. Débit max (envoi/réception, ex. <span class="code">1M/2M</span>) : appliqué aux prochains lots de tickets MikroTik.</p>
+        <div class="table-wrap"><table><thead><tr><th>Actif</th><th>Forfait</th><th>Durée (min)</th><th class="num">Prix (FC)</th><th>Débit max</th></tr></thead><tbody>
           ${s.tariffs.map((t, i) => `<tr><td><input type="checkbox" name="active${i}" ${t.active ? 'checked' : ''} style="width:auto"></td>
             <td><input name="label${i}" value="${esc(t.label)}" required></td>
             <td><input name="minutes${i}" type="number" min="1" value="${t.minutes}" required style="width:100px"></td>
-            <td><input name="price${i}" type="number" min="0" step="50" value="${t.price}" required style="width:110px;text-align:right"></td></tr>`).join('')}
+            <td><input name="price${i}" type="number" min="0" step="50" value="${t.price}" required style="width:110px;text-align:right"></td>
+            <td><input name="rate${i}" value="${esc(t.rateLimit || '')}" placeholder="ex. 2M/2M" pattern="[0-9]+[kM]?/[0-9]+[kM]?" style="width:110px"></td></tr>`).join('')}
         </tbody></table></div>
         <div class="row"><button class="btn primary">Enregistrer les tarifs</button><button type="button" class="btn sm" id="addTariff">+ Forfait</button></div>
       </form>
@@ -793,6 +1067,7 @@
         t.label = String(f.get('label' + i)).trim() || t.label;
         t.minutes = Math.max(1, +f.get('minutes' + i) || t.minutes);
         t.price = Math.max(0, +f.get('price' + i) || 0);
+        t.rateLimit = String(f.get('rate' + i) || '').trim();
       });
       await saveSettings(); toast('Tarifs enregistrés'); renderSettings();
     });
@@ -814,13 +1089,13 @@
     $('#expSales').onclick = exportSalesCsv;
     $('#expDaily').onclick = exportDailyCsv;
     $('#expBackup').onclick = () => download(`cispolstore-sauvegarde-${today()}.json`,
-      JSON.stringify({ app: 'cispolstore-gestion', version: 1, exportedAt: new Date().toISOString(), settings: db.settings, agents: db.agents, zones: db.zones, sales: db.sales, incidents: db.incidents }, null, 1),
+      JSON.stringify({ app: 'cispolstore-gestion', version: 2, exportedAt: new Date().toISOString(), settings: db.settings, agents: db.agents, zones: db.zones, sales: db.sales, incidents: db.incidents, tickets: db.tickets }, null, 1),
       'application/json');
     $('#impBackup').onchange = e => e.target.files[0] && restoreBackup(e.target.files[0]);
     $('#wipe').onclick = async () => {
       if (prompt('Toutes les données de cet appareil seront supprimées.\nTapez EFFACER pour confirmer :') !== 'EFFACER') return;
       await Promise.all(STORES.map(clearStore));
-      Object.assign(db, { settings: null, agents: [], zones: [], sales: [], incidents: [] });
+      Object.assign(db, { settings: null, agents: [], zones: [], sales: [], incidents: [], tickets: [] });
       lock();
     };
   }
@@ -894,7 +1169,7 @@
     if (!confirm(`Remplacer les données de cet appareil par la sauvegarde du ${fmtDateTime(data.exportedAt)} (${data.sales.length} ventes) ?`)) return;
     await Promise.all(STORES.map(clearStore));
     await put('meta', data.settings);
-    for (const k of ['agents', 'zones', 'sales', 'incidents']) for (const o of data[k] || []) await put(k, o);
+    for (const k of ['agents', 'zones', 'sales', 'incidents', 'tickets']) await putMany(k, data[k] || []);
     await loadAll();
     toast('Sauvegarde restaurée');
     lock();
@@ -943,6 +1218,11 @@
       return;
     }
     if (db.agents.length && !db.settings) db.settings = defaultSettings();
+    if (db.settings && !db.settings.mikrotik) { // data created by v1
+      db.settings.mikrotik = { ...DEFAULT_MIKROTIK };
+      db.settings.tariffs.forEach(t => { t.rateLimit = t.rateLimit || ''; });
+      await saveSettings();
+    }
     restoreSession();
     route();
     if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
