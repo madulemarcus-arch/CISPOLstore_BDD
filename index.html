@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CISPOLstore Gestion</title>
+<meta name="description" content="Gestion des ventes de vouchers Wi-Fi CISPOLstore : ventes, rapport journalier, tableau de bord.">
+<meta name="theme-color" content="#1f5fb0">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar" id="topbar" hidden>
+  <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"><span id="brandName">CISPOLstore</span></div>
+  <button class="user-chip" id="userChip" data-action="user-menu" aria-haspopup="dialog"></button>
+</header>
+
+<main id="view" tabindex="-1"></main>
+
+<nav class="tabbar" id="tabbar" hidden>
+  <a href="#/vendre" data-tab="vendre"><span aria-hidden="true">🎫</span>Vendre</a>
+  <a href="#/rapport" data-tab="rapport"><span aria-hidden="true">📋</span>Rapport</a>
+  <a href="#/tableau" data-tab="tableau" data-role="gerant"><span aria-hidden="true">📊</span>Tableau</a>
+  <a href="#/reglages" data-tab="reglages" data-role="gerant"><span aria-hidden="true">⚙️</span>Réglages</a>
+</nav>
+
+<dialog id="modal"><div id="modalBody"></div></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

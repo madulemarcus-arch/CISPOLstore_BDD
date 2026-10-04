@@ -1,0 +1,15 @@
+{
+  "name": "cispolstore-gestion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA hors ligne de gestion des ventes de vouchers Wi-Fi CISPOLstore",
+  "type": "module",
+  "scripts": {
+    "start": "npx http-server -c-1 -p 8080 .",
+    "test": "node tests/e2e.mjs",
+    "icons": "node tests/icons.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}
