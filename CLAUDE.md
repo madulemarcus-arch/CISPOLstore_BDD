@@ -10,7 +10,7 @@ PWA hors ligne de gestion des Wi-Fi Zones CISPOLstore (vente de vouchers, rappor
 
 - `npm start` : sert le dossier sur http://localhost:8080 (le service worker exige http(s), pas `file://`).
 - `npm test` / `node tests/e2e.mjs [dossierCaptures]` : test de bout en bout Playwright/Chromium avec son propre serveur HTTP. C'est un seul scénario séquentiel : pour tester une partie isolée, commentez les étapes suivantes ou ajoutez des assertions à la suite.
-- `npm run icons` : régénère `icons/icon-192.png` et `icon-512.png` à partir de `icons/icon.svg`.
+- `npm run icons` : régénère `icons/icon-192.png`, `icon-512.png` et `logo-mark.png` à partir du logo `icons/logo-source.png` (zone du symbole définie par `MARK` dans `tests/icons.mjs`).
 
 ## Architecture (`app.js`)
 
@@ -31,6 +31,10 @@ Une IIFE découpée en sections `// ---------- X ----------` :
 - Les annulations ne suppriment rien : `void`, `voidReason`, `voidAt`, `voidBy`.
 - Un changement de schéma IndexedDB demande d'incrémenter la version dans `openDb()` et de migrer les réglages au démarrage (voir le bloc « data created by v1 » dans Boot).
 - Les scripts `.rsc` et `login.html` ne peuvent pas être testés ici sans routeur : le test e2e vérifie leur contenu, pas leur exécution par RouterOS.
+
+## Charte graphique
+
+Couleurs du logo CispolStore, en variables CSS dans `styles.css` : bleu marine `#1e435e` (`--accent`, boutons, titres), orange `#d85833` (`--brand-orange`, « Store », onglet actif, bordure des vouchers), jaune `#e5af42` (`--brand-yellow`). `brandHtml()` affiche le nom avec « Store » en orange. `login.html` (Hotspot) reprend ces couleurs en dur et embarque le logo en data URI, car le client n'a pas Internet avant de se connecter.
 
 ## Conventions
 

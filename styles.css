@@ -7,10 +7,14 @@
   --text: #14171c;
   --text-2: #4d5562;
   --muted: #7a8290;
-  --accent: #1f5fb0;
+  /* Brand (CispolStore logo): navy #1e435e, orange #d85833, red #bb3429, yellow #e5af42 */
+  --accent: #1e435e;
   --accent-ink: #ffffff;
-  --accent-soft: #e3edfa;
-  --series-1: #2a78d6;
+  --accent-soft: #e4ecf3;
+  --brand-orange: #d85833;
+  --brand-orange-ink: #b8401c;  /* orange dark enough for text on white */
+  --brand-yellow: #e5af42;
+  --series-1: #1e435e;
   --good: #0e7a3c;   --good-soft: #e2f4e9;
   --warn: #9a6100;   --warn-soft: #fdf1d9;
   --bad: #b42323;    --bad-soft: #fbe5e5;
@@ -27,10 +31,13 @@
     --text: #f2f4f7;
     --text-2: #c2c8d2;
     --muted: #8b93a1;
-    --accent: #4a8fe6;
-    --accent-ink: #ffffff;
-    --accent-soft: #1b2b44;
-    --series-1: #3987e5;
+    --accent: #6e9cc4;
+    --accent-ink: #0f1115;
+    --accent-soft: #1b2a38;
+    --brand-orange: #ec7046;
+    --brand-orange-ink: #f08a62;
+    --brand-yellow: #eeb94f;
+    --series-1: #6e9cc4;
     --good: #4cc27c;   --good-soft: #15301f;
     --warn: #e2a63b;   --warn-soft: #33270f;
     --bad: #f07272;    --bad-soft: #3a1818;
@@ -61,7 +68,12 @@ a { color: var(--accent); }
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
 }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.05rem; color: var(--accent); }
+.brand img { display: block; }
+.brand .accent2, .wordmark .accent2 { color: var(--brand-orange-ink); }
+.topbar { border-bottom: 3px solid transparent; border-image: linear-gradient(90deg, var(--accent) 0 55%, var(--brand-orange) 55% 80%, var(--brand-yellow) 80%) 1; }
+.wordmark { font-weight: 800; color: var(--accent); }
+.hero-mark { display: block; margin: 0 auto 8px; }
 .user-chip {
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
   border-radius: 999px; padding: 6px 12px; font: inherit; font-size: .85rem; cursor: pointer;
@@ -78,7 +90,7 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; outline: none; }
   padding: 8px 4px 10px; font-size: .75rem; color: var(--muted); text-decoration: none;
 }
 .tabbar a span { font-size: 1.3rem; line-height: 1; }
-.tabbar a.active { color: var(--accent); font-weight: 600; }
+.tabbar a.active { color: var(--accent); font-weight: 600; box-shadow: inset 0 3px 0 var(--brand-orange); }
 
 .card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -186,9 +198,9 @@ dialog {
 dialog::backdrop { background: rgba(10, 12, 16, .55); }
 #modalBody { padding: 20px; }
 .voucher {
-  text-align: center; border: 2px dashed var(--accent); border-radius: 14px; padding: 16px; margin: 12px 0;
+  text-align: center; border: 2px dashed var(--brand-orange); border-radius: 14px; padding: 16px; margin: 12px 0;
 }
-.voucher .code { font-size: 2rem; font-weight: 800; }
+.voucher .code { font-size: 2rem; font-weight: 800; color: var(--accent); }
 .toast {
   position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%);
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: .9rem;

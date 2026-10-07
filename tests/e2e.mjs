@@ -73,7 +73,7 @@ await batch('7 jours', 1);
 await page.waitForSelector('text=L' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-05');
 const [login] = await Promise.all([page.waitForEvent('download'), page.click('#dlLogin')]);
 const loginPage = await readFile(await login.path(), 'utf8');
-for (const k of ['$(link-login-only)', '$(if chap-id)', "hexMD5('$(chap-id)'+c+'$(chap-challenge)')", '$(if error)', 'CISPOLstore WiFi'])
+for (const k of ['$(link-login-only)', '$(if chap-id)', "hexMD5('$(chap-id)'+c+'$(chap-challenge)')", '$(if error)', 'CispolStore WiFi', 'src="data:image/png;base64,'])
   assert.ok(loginPage.includes(k), `login.html should contain ${k}`);
 assert.match(loginPage, /<td>Journée<\/td><td>2\s000 FC<\/td>/);
 await page.click('li:has-text("1 heure") [data-print]');

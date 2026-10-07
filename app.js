@@ -27,7 +27,7 @@
 
   const DEFAULT_TARGETS = [50, 65, 80, 90, 100, 110, 120, 130, 140, 150, 165, 180];
   const PAYMENTS = { cash: 'Cash', mm: 'Mobile Money', free: 'Gratuit' };
-  const DEFAULT_MIKROTIK = { enabled: true, ssid: 'CISPOLstore WiFi' };
+  const DEFAULT_MIKROTIK = { enabled: true, ssid: 'CispolStore WiFi' };
   const TICKET_STATUS = { stock: 'En stock', sold: 'Vendu', void: 'Annulé' };
   const MAX_BATCH = 500;
   const LOCK_AFTER_MS = 5 * 60 * 1000;
@@ -39,6 +39,11 @@
   const fc = n => nf.format(Math.round(n || 0)) + ' FC';
   const usd = n => '≈ ' + new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n) + ' $';
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // Logo wordmark: "Cispol" in navy, "Store" in orange (any name containing "store")
+  const brandHtml = name => {
+    const m = String(name).match(/^(.*?)(store)(.*)$/i);
+    return m ? `${esc(m[1])}<span class="accent2">${esc(m[2])}</span>${esc(m[3])}` : esc(name);
+  };
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const pad = n => String(n).padStart(2, '0');
   const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -136,7 +141,7 @@
 
   function defaultSettings() {
     return {
-      id: 'settings', businessName: 'CISPOLstore', rate: 2300, avgBasket: 750,
+      id: 'settings', businessName: 'CispolStore', rate: 2300, avgBasket: 750,
       launchMonth: monthKey(new Date()), targets: DEFAULT_TARGETS.slice(),
       charges: DEFAULT_CHARGES.map(c => ({ ...c })), tariffs: DEFAULT_TARIFFS.map(t => ({ ...t })),
       mikrotik: { ...DEFAULT_MIKROTIK },
@@ -279,7 +284,7 @@
     if (!db.agents.length) return renderSetup();
     if (!loggedIn) return renderLogin();
 
-    $('#brandName').textContent = db.settings.businessName;
+    $('#brandName').innerHTML = brandHtml(db.settings.businessName);
     $('#userChip').textContent = `${me().name} · ${me().role === 'gerant' ? 'Gérant' : 'Agent'} ▾`;
     document.querySelectorAll('[data-role="gerant"]').forEach(el => { el.hidden = !isManager(); });
 
@@ -294,10 +299,11 @@
   function renderSetup() {
     view.innerHTML = `
       <div class="card stack">
-        <h1>Bienvenue 👋</h1>
+        <img class="hero-mark" src="icons/logo-mark.png" alt="" width="72" height="72">
+        <h1 style="text-align:center">Bienvenue chez <span class="wordmark">Cispol<span class="accent2">Store</span></span></h1>
         <p class="muted">Première utilisation : créez le compte du gérant et la zone pilote. Les données restent sur cet appareil.</p>
         <form id="setupForm" class="stack">
-          <label class="field"><span>Nom de l'entreprise</span><input name="business" value="CISPOLstore" required></label>
+          <label class="field"><span>Nom de l'entreprise</span><input name="business" value="CispolStore" required></label>
           <label class="field"><span>Nom de la zone pilote</span><input name="zone" placeholder="ex. Zone Basoko" required></label>
           <label class="field"><span>Votre nom (gérant)</span><input name="name" autocomplete="name" required></label>
           <div class="grid2">
@@ -313,7 +319,7 @@
       if (!validPin(f.pin)) return toast('Le PIN doit contenir 4 à 6 chiffres');
       if (f.pin !== f.pin2) return toast('Les deux PIN ne correspondent pas');
       db.settings = defaultSettings();
-      db.settings.businessName = f.business.trim() || 'CISPOLstore';
+      db.settings.businessName = f.business.trim() || 'CispolStore';
       const zone = { id: uid(), name: f.zone.trim(), active: true };
       const agent = { id: uid(), name: f.name.trim(), role: 'gerant', zoneId: zone.id, active: true };
       await setPin(agent, f.pin);
@@ -333,7 +339,8 @@
     if (!agent) {
       view.innerHTML = `
         <div class="card">
-          <h1>${esc(db.settings.businessName)}</h1>
+          <img class="hero-mark" src="icons/logo-mark.png" alt="" width="64" height="64">
+          <h1 class="wordmark" style="text-align:center">${brandHtml(db.settings.businessName)}</h1>
           <p class="muted">Qui êtes-vous ?</p>
           <div class="agents">
             ${agents.map(a => `<button class="btn agent-btn" data-agent="${a.id}">${esc(a.name)}<small>${a.role === 'gerant' ? 'Gérant' : 'Agent'} · ${esc(zoneName(a.zoneId))}</small></button>`).join('')}
@@ -498,7 +505,7 @@
         <div class="muted small">Code d’accès</div>
         <div class="code">${esc(s.code)}</div>
         <div>${esc(s.tariffLabel)} · ${s.payment === 'free' ? 'Gratuit' : fc(s.price) + ' · ' + PAYMENTS[s.payment]}</div>
-        <div class="muted small">${mikrotikOn() ? `${fmtDuration(s.minutes)} de connexion sur « ${esc(db.settings.mikrotik.ssid)} »` : `Valable jusqu’au ${fmtDateTime(s.expires)} au plus tard`}</div>
+        <div class="muted small">${mikrotikOn() ? `${fmtDuration(s.minutes)} de connexion sur «\u00a0${esc(db.settings.mikrotik.ssid)}\u00a0»` : `Valable jusqu’au ${fmtDateTime(s.expires)} au plus tard`}</div>
       </div>
       <div class="grid2">
         <button class="btn" data-m="copy">📋 Copier</button>
@@ -682,14 +689,21 @@
     let box = $('#print');
     if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.append(box); }
     box.innerHTML = list.map(k => `<div class="ticket">
-      <div class="t-brand">${esc(db.settings.businessName)}</div>
+      <div class="t-brand">${brandHtml(db.settings.businessName)}</div>
       <div class="t-code">${esc(k.code)}</div>
       <div class="t-plan">${esc(k.tariffLabel)} · ${fc(k.price)}</div>
       <div class="t-help">Wi-Fi « ${esc(ssid)} » → saisir le code</div></div>`).join('');
     window.print();
   }
 
-  function loginHtml() {
+  async function logoDataUrl() {
+    try {
+      const blob = await (await fetch('icons/logo-mark.png')).blob();
+      return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+    } catch { return ''; }
+  }
+
+  function loginHtml(logo = '') {
     const s = db.settings, ssid = esc(s.mikrotik.ssid);
     const rows = activeTariffs().map(t => `<tr><td>${esc(t.label)}</td><td>${nf.format(t.price)} FC</td></tr>`).join('');
     // MikroTik substitutes $(...) variables when serving the page; keep everything inline (no internet before login)
@@ -701,9 +715,12 @@
 body{margin:0;font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f4f5f7;color:#14171c}
 main{max-width:420px;margin:0 auto;padding:24px 16px}
 .card{background:#fff;border:1px solid #dde1e7;border-radius:16px;padding:20px;margin-bottom:14px}
-h1{margin:0 0 4px;font-size:1.4rem;color:#1f5fb0}p{margin:0 0 14px;color:#4d5562}
+h1{margin:0 0 4px;font-size:1.5rem;font-weight:800;color:#1e435e;text-align:center}h1 span{color:#d85833}p{margin:0 0 14px;color:#4d5562}
+.logo{display:block;margin:0 auto 6px}
+.card:first-child{border-top:4px solid #d85833}
 input{width:100%;box-sizing:border-box;font:inherit;font-size:1.3rem;letter-spacing:.08em;text-align:center;padding:12px;border:1px solid #c9ced6;border-radius:12px;margin-bottom:12px}
-button{width:100%;font:inherit;font-weight:700;padding:14px;border:0;border-radius:12px;background:#1f5fb0;color:#fff}
+button{width:100%;font:inherit;font-weight:700;padding:14px;border:0;border-radius:12px;background:#1e435e;color:#fff}
+input:focus{outline:2px solid #d85833;border-color:#d85833}
 .err{background:#fbe5e5;color:#b42323;border-radius:10px;padding:10px;margin-bottom:12px}
 table{width:100%;border-collapse:collapse;font-size:.95rem}td{padding:6px 0;border-bottom:1px solid #eef1f5}td+td{text-align:right;font-weight:600}
 small{display:block;text-align:center;color:#7a8290;margin-top:8px}
@@ -717,7 +734,8 @@ $(if chap-id)
 $(endif)
 <main>
 <div class="card">
-<h1>${esc(s.businessName)}</h1>
+${logo ? `<img class="logo" src="${logo}" alt="" width="72" height="72">` : ''}
+<h1>${brandHtml(s.businessName)}</h1>
 <p>Bienvenue sur le Wi-Fi « ${ssid} ». Saisissez le code de votre ticket.</p>
 $(if error)<div class="err">$(error)</div>$(endif)
 <form name="login" action="$(link-login-only)" method="post" onsubmit="return go()">
@@ -825,7 +843,7 @@ function go(){
       toast(`Lot ${batch.label} : ${n} tickets créés`);
       renderTickets();
     });
-    $('#dlLogin').onclick = () => download('login.html', loginHtml(), 'text/html');
+    $('#dlLogin').onclick = async () => download('login.html', loginHtml(await logoDataUrl()), 'text/html');
     view.querySelectorAll('[data-rsc]').forEach(b => b.onclick = () => downloadRsc(byId(b.dataset.rsc)));
     view.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => batchCsv(byId(b.dataset.csv)));
     view.querySelectorAll('[data-print]').forEach(b => b.onclick = () => {
