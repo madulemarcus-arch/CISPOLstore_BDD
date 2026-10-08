@@ -36,6 +36,10 @@ Une IIFE découpée en sections `// ---------- X ----------` :
 
 Couleurs du logo CispolStore, en variables CSS dans `styles.css` : bleu marine `#1e435e` (`--accent`, boutons, titres), orange `#d85833` (`--brand-orange`, « Store », onglet actif, bordure des vouchers), jaune `#e5af42` (`--brand-yellow`). `brandHtml()` affiche le nom avec « Store » en orange. `login.html` (Hotspot) reprend ces couleurs en dur et embarque le logo en data URI, car le client n'a pas Internet avant de se connecter.
 
+## Compétences (skills)
+
+`.claude/skills/find-skills/` : compétence « find-skills » de `vercel-labs/skills`, copiée telle quelle pour être chargée à chaque session. Elle aide à chercher et installer d'autres compétences (`npx skills find …`). Pour la mettre à jour, réexécuter `npx skills add https://github.com/vercel-labs/skills --skill find-skills` et recopier son `SKILL.md` ici. Relire une compétence avant de l'ajouter : elle s'exécute avec tous les droits de l'agent.
+
 ## Conventions
 
 Interface, README et messages de commit en français ; commentaires du code en anglais.
