@@ -42,7 +42,7 @@ Couleurs du logo CispolStore, en variables CSS dans `styles.css` : bleu marine `
 
 Compétences propres à CispolStore (écrites pour ce projet, en français, destinées au gérant) :
 - `bilan-mensuel/` : bilan du mois à partir de l'export CSV des ventes. Les calculs passent par `scripts/bilan.py` (Python 3, sans dépendance) ; les repères du business plan sont dans `references/plan.md`. Si le format de l'export change dans `exportSalesCsv()` (`app.js`), mettre à jour le script.
-- `mikrotik-nouveau-routeur/` : configuration pas à pas d'un MikroTik en Hotspot CispolStore et dépannage (`references/depannage.md`). Doit rester cohérent avec `rscFor()` et `loginHtml()`.
+- `mikrotik-nouveau-routeur/` : configuration pas à pas d'un MikroTik en Hotspot CispolStore, générateur de configuration complète par modèle (`scripts/generer_config.py`, table `MODELES`) et dépannage (`references/depannage.md`). Doit rester cohérent avec `rscFor()` et `loginHtml()` (profils `cispol-*`, connexion CHAP, dossier `hotspot`). Les scripts RouterOS générés n'ont pas été testés sur un vrai routeur depuis ce dépôt.
 - `ouverture-zone/` : décision, choix d'emplacement, budget, checklist et mise en place d'une nouvelle zone (`references/reperes.md`).
 
 ## Conventions

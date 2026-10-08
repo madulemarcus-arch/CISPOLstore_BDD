@@ -1,6 +1,6 @@
 ---
 name: mikrotik-nouveau-routeur
-description: "Guide pas à pas pour installer et configurer un routeur MikroTik en Wi-Fi Zone CispolStore (Hotspot à tickets, Starlink, page de connexion login.html, import des lots de tickets de l'appli CISPOLstore Gestion), puis le dépanner. À utiliser dès que l'utilisateur parle de MikroTik, Winbox, RouterOS, hotspot, portail captif, tickets qui ne marchent pas, « le Wi-Fi ne demande pas le code », import .rsc, nouveau routeur ou remplacement d'un routeur, même s'il ne dit pas « configurer »."
+description: "Guide pas à pas pour installer et configurer un routeur MikroTik en Wi-Fi Zone CispolStore (Hotspot à tickets, Starlink, page de connexion login.html, import des lots de tickets de l'appli CISPOLstore Gestion), ou générer en un seul fichier sa configuration complète selon le modèle (hAP ax², L009, RB951, hEX…), puis le dépanner. À utiliser dès que l'utilisateur parle de MikroTik, Winbox, RouterOS, hotspot, portail captif, tickets qui ne marchent pas, « le Wi-Fi ne demande pas le code », import .rsc, nouveau routeur ou remplacement d'un routeur, script ou configuration complète, même s'il ne dit pas « configurer »."
 ---
 
 # Nouveau routeur MikroTik pour une Wi-Fi Zone CispolStore
@@ -23,6 +23,36 @@ Demande (ou fais vérifier dans Winbox) :
 5. Le **nom de la zone** et le **nom du réseau** (SSID) choisis dans l'appli (onglet Tickets), par défaut « CispolStore WiFi ».
 
 Pour les débutants : Winbox se télécharge sur mikrotik.com (PC Windows). Sur téléphone, l'appli officielle « MikroTik » (Android) permet aussi le terminal et les menus.
+
+## Deux façons de faire
+
+- **Pas à pas** (sections 1 à 8 ci-dessous) : recommandé pour le **premier** routeur, ou quand l'utilisateur veut comprendre, ou pour un modèle inconnu.
+- **Configuration complète en un fichier** (section « Mode rapide ») : pour les routeurs suivants, ou si l'utilisateur la demande. Plus rapide, mais une erreur se voit après coup ; la faire d'abord sur un routeur qui n'est pas encore en service.
+
+Dans les deux cas, commence par l'étape 0.
+
+## Mode rapide : configuration complète en un fichier
+
+Le script `scripts/generer_config.py` (dans le dossier de cette compétence, Python 3 sans dépendance) produit un `.rsc` qui fait les sections 1 à 4 et 8 d'un coup : sécurité, Internet, DNS, Wi-Fi ouvert, Hotspot avec connexion CHAP, sauvegarde. Il s'applique **par-dessus la configuration par défaut** de MikroTik (bridge, client DHCP sur `ether1`, pare-feu, NAT, DHCP 192.168.88.0/24). Chaque étape vérifie avant d'ajouter : le réimporter est sans danger.
+
+1. Recueille : modèle exact (System → RouterBOARD), version RouterOS, nom de la zone, nom du Wi-Fi (celui de l'appli, onglet Tickets), mot de passe admin choisi par l'utilisateur (8 caractères minimum, lettres et chiffres, sans accents ni `" $ \`).
+2. Génère :
+   ```bash
+   python3 <dossier-de-la-competence>/scripts/generer_config.py --modele "hAP ax2" --zone "Zone Basoko" --mot-de-passe "..." --ssid "CispolStore WiFi" --sortie cispol-config-basoko.rsc
+   ```
+   `--liste-modeles` affiche les modèles connus (Wi-Fi, nombre de clients raisonnable, remarques). Pour un modèle inconnu, ajoute `--wifi wifi` (menu « WiFi » dans Winbox), `--wifi wireless` (menu « Wireless ») ou `--wifi aucun`, et `--ros 6` si le routeur est en v6.
+3. Donne le fichier à l'utilisateur, puis guide :
+   1. System → Reset Configuration, **sans** cocher « No Default Configuration » → le routeur redémarre (reconnexion Winbox par l'adresse MAC, onglet Neighbors).
+   2. Files → glisser le fichier `.rsc`.
+   3. New Terminal : `/import file-name=cispol-config-basoko.rsc verbose=yes` → la dernière ligne doit dire « CispolStore : configuration appliquée ». En cas d'erreur, demande la ligne affichée juste avant et consulte `references/depannage.md`.
+   4. **Supprimer le fichier `.rsc` du routeur** (Files) et de l'appareil : il contient le mot de passe admin. Garder `cispolstore-config.backup` et `.rsc` d'export (téléchargés, hors du routeur).
+4. Vérifications après import :
+   - IP → Hotspot → Servers : `cispol` actif sur `bridge`.
+   - Files → dossier `hotspot` présent avec `login.html` et `md5.js` (sinon : IP → Hotspot → Hotspot Setup sur `bridge` pour recréer les fichiers, puis remettre le profil `cispol`).
+   - `/ping 8.8.8.8 count=4` répond.
+5. Puis sections 5 (page `login.html` de l'appli), 6 (lot de tickets d'essai) et 7 (test final) comme en pas à pas.
+
+Si le modèle n'a pas de Wi-Fi (L009, hEX…), le script le dit : configure ensuite les points d'accès (section 3).
 
 ## 1. Remise à zéro et sécurité de base
 
