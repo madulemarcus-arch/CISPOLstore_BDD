@@ -1,6 +1,6 @@
 ---
 name: ouverture-zone
-description: Accompagne l'ouverture d'une nouvelle Wi-Fi Zone CispolStore, de la décision au lancement : vérifier que l'ouverture est justifiée (règle de discipline du business plan), comparer les emplacements candidats, budget, partenariat d'emplacement 70/30, checklist avant achat, calendrier, puis mise en place dans l'appli et sur le routeur. À utiliser dès que l'utilisateur parle d'ouvrir, lancer, dupliquer ou étendre une zone, d'un nouvel emplacement ou quartier (Basoko, Disasi, Mayoyo, près d'une université, d'un hôtel…), d'un partenaire qui propose un local, ou de l'expansion du réseau, même sans dire « ouverture ».
+description: "Accompagne l'ouverture d'une nouvelle Wi-Fi Zone CispolStore, de la décision au lancement : vérifier que l'ouverture est justifiée (règle de discipline du business plan), comparer les emplacements candidats, budget, partenariat d'emplacement 70/30, checklist avant achat, calendrier, puis mise en place dans l'appli et sur le routeur. À utiliser dès que l'utilisateur parle d'ouvrir, lancer, dupliquer ou étendre une zone, d'un nouvel emplacement ou quartier (Basoko, Disasi, Mayoyo, près d'une université, d'un hôtel…), d'un partenaire qui propose un local, ou de l'expansion du réseau, même sans dire « ouverture »."
 ---
 
 # Ouverture d'une nouvelle Wi-Fi Zone CispolStore

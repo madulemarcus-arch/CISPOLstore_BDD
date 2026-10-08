@@ -1,6 +1,6 @@
 ---
 name: mikrotik-nouveau-routeur
-description: Guide pas à pas pour installer et configurer un routeur MikroTik en Wi-Fi Zone CispolStore (Hotspot à tickets, Starlink, page de connexion login.html, import des lots de tickets de l'appli CISPOLstore Gestion), puis le dépanner. À utiliser dès que l'utilisateur parle de MikroTik, Winbox, RouterOS, hotspot, portail captif, tickets qui ne marchent pas, « le Wi-Fi ne demande pas le code », import .rsc, nouveau routeur ou remplacement d'un routeur, même s'il ne dit pas « configurer ».
+description: "Guide pas à pas pour installer et configurer un routeur MikroTik en Wi-Fi Zone CispolStore (Hotspot à tickets, Starlink, page de connexion login.html, import des lots de tickets de l'appli CISPOLstore Gestion), puis le dépanner. À utiliser dès que l'utilisateur parle de MikroTik, Winbox, RouterOS, hotspot, portail captif, tickets qui ne marchent pas, « le Wi-Fi ne demande pas le code », import .rsc, nouveau routeur ou remplacement d'un routeur, même s'il ne dit pas « configurer »."
 ---
 
 # Nouveau routeur MikroTik pour une Wi-Fi Zone CispolStore
@@ -16,7 +16,7 @@ Architecture visée (plan §5.1) : Starlink → MikroTik (routeur/pare-feu + Hot
 ## 0. Avant de commencer : ce qu'il faut savoir
 
 Demande (ou fais vérifier dans Winbox) :
-1. **Modèle** du routeur : System → RouterBOARD (ex. hAP ax², hEX, RB750Gr3…).
+1. **Modèle** du routeur : System → RouterBOARD (ex. hAP ax², hEX, RB750Gr3…). Tous les MikroTik utilisent RouterOS, donc ce guide vaut pour tous ; seuls changent le Wi-Fi (intégré ou non) et la puissance. Les petits modèles à 32 Mo de mémoire (hAP lite, hAP mini…) font tourner le Hotspot mais pour peu de clients simultanés (une vingtaine) : pour une zone fréquentée, conseiller un modèle plus récent (hAP ax², hAP ac², hEX + points d'accès). Vérifier la mémoire libre dans System → Resources.
 2. **Version RouterOS** : System → Packages (v6.x ou v7.x). Ce guide vise la **v7** ; les différences v6 sont signalées. Si le routeur est en v6.48 ou plus ancien, propose la mise à jour (System → Packages → Check For Updates → Download&Install) avant de configurer.
 3. **Comment arrive Internet** : Starlink en mode **bypass** (recommandé : le MikroTik reçoit Internet directement sur `ether1`) ou Starlink routeur normal (double NAT, ça marche aussi).
 4. **Où diffuser le Wi-Fi** : Wi-Fi intégré du MikroTik, ou points d'accès séparés (Ubiquiti, etc.) branchés sur un port/switch.

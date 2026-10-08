@@ -1,6 +1,6 @@
 ---
 name: bilan-mensuel
-description: Produit le bilan mensuel d'une ou plusieurs Wi-Fi Zones CispolStore à partir de l'export CSV des ventes de l'appli CISPOLstore Gestion, et le compare au business plan (seuil de rentabilité, objectifs clients/jour, charges, panier moyen). À utiliser dès que l'utilisateur parle de bilan, de résultats du mois, de chiffre d'affaires, de « combien on a fait », de rentabilité, de point à 30/60/90 jours, de décision d'expansion, ou partage un fichier cispolstore-ventes-*.csv ou cispolstore-rapports-*.csv, même sans dire « bilan ».
+description: "Produit le bilan mensuel d'une ou plusieurs Wi-Fi Zones CispolStore à partir de l'export CSV des ventes de l'appli CISPOLstore Gestion, et le compare au business plan (seuil de rentabilité, objectifs clients/jour, charges, panier moyen). À utiliser dès que l'utilisateur parle de bilan, de résultats du mois, de chiffre d'affaires, de « combien on a fait », de rentabilité, de point à 30/60/90 jours, de décision d'expansion, ou partage un fichier cispolstore-ventes-*.csv ou cispolstore-rapports-*.csv, même sans dire « bilan »."
 ---
 
 # Bilan mensuel CispolStore
@@ -24,8 +24,10 @@ Demande aussi, si tu ne les connais pas : le mois à analyser (par défaut le de
 
 ## 2. Calculer avec le script (ne pas recalculer à la main)
 
+Le script est `scripts/bilan.py` dans le dossier de cette compétence (Python 3, sans dépendance). Remplace `<dossier-de-la-competence>` par ce dossier (dans le dépôt CISPOLstore_BDD : `.claude/skills/bilan-mensuel`) :
+
 ```bash
-python3 .claude/skills/bilan-mensuel/scripts/bilan.py cispolstore-ventes-*.csv --mois 2026-11 --lancement 2026-11
+python3 <dossier-de-la-competence>/scripts/bilan.py cispolstore-ventes-*.csv --mois 2026-11 --lancement 2026-11
 ```
 
 Options utiles : `--zone "Zone Basoko"` (une seule zone), `--charges 1100000` (charges mensuelles **par zone**), `--panier 750`, `--taux 2300`, `--objectifs 50,65,80,...`, `--json` (sortie brute). Le script affiche un bilan en Markdown avec tous les chiffres. Fais-lui confiance pour les calculs : un total faux détruit la confiance du gérant dans tout le reste.
