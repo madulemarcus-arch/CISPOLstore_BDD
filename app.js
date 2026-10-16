@@ -467,7 +467,9 @@
       if (st.manualOpen) $('#manualCode').focus();
     });
     $('#sellBtn').addEventListener('click', async () => {
-      const manual = $('#manualCode').value.replace(/\s+/g, '');
+      let manual = $('#manualCode').value.replace(/\s+/g, '');
+      const printed = db.tickets.find(x => x.code.toLowerCase() === manual.toLowerCase());   // tickets are printed in capitals
+      if (printed) manual = printed.code;
       let t = tariffs.find(x => x.id === st.tariffId);
       let ticket = null;
       if (manual) {
@@ -692,7 +694,7 @@
       <div class="t-top"><img class="t-logo" src="icons/logo-mark.png" alt="" width="40" height="40"><div class="t-brand">${brandHtml(db.settings.businessName)}<small>Wi-Fi Zone</small></div></div>
       <div class="t-body">
         <div class="t-label">Votre code de connexion</div>
-        <div class="t-code">${esc(k.code)}</div>
+        <div class="t-code">${esc(k.code.toUpperCase())}</div>
         <div class="t-plan"><span class="t-pill">${esc(k.tariffLabel)}</span><span class="t-dur">${esc(fmtDuration(k.minutes))} de connexion</span></div>
       </div>
       <ol class="t-steps"><li>Activez <b>${esc(ssid)}</b></li><li>Saisissez le code ci-dessus</li></ol>
@@ -757,7 +759,7 @@ $(if error)<div class="err">$(error)</div>$(endif)
 </main>
 <script>
 function go(){
-  var f=document.login, c=f.username.value.replace(/\\s+/g,'');
+  var f=document.login, c=f.username.value.replace(/\\s+/g,'').toLowerCase();   // codes are printed in capitals, the router stores them in lowercase
   f.username.value=c; f.password.value=c;
   $(if chap-id)
   document.sendin.username.value=c;
