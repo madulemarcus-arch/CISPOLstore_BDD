@@ -197,6 +197,7 @@
 
   const mikrotikOn = () => !!db.settings.mikrotik?.enabled;
   const loginHost = () => String(db.settings.mikrotik?.loginHost ?? 'wifi.cispolstore').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const perPage = () => (+db.settings.mikrotik?.perPage === 20 ? 20 : 40);   // printed tickets per A4 page: compact (40) or large (20)
   const lowLimit = () => Math.max(1, +db.settings.mikrotik?.lowStock || 10);
   const managerPhone = () => String(db.settings.mikrotik?.managerPhone || '').replace(/\D/g, '');
   // Tariffs whose ticket stock is under the alert threshold, per zone (empty when tickets are not managed in the router)
@@ -793,14 +794,22 @@
     const ssid = db.settings.mikrotik.ssid, host = loginHost();
     let box = $('#print');
     if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.append(box); }
-    box.innerHTML = list.map(k => `<div class="ticket">
+    const compact = perPage() === 40;
+    box.className = compact ? 'p40' : 'p20';
+    const qr = k => host ? qrSvg(`http://${host}/login?username=${k.code}`) : '';
+    box.innerHTML = list.map(k => compact ? `<div class="ticket">
+      <div class="c-top"><img class="t-logo" src="icons/logo-mark.png" alt="" width="40" height="40"><span class="c-brand">${brandHtml(db.settings.businessName)}</span><span class="c-price">${fc(k.price)}</span></div>
+      <div class="c-main"><div class="c-left"><div class="t-code">${esc(k.code.toUpperCase())}</div>
+        <div class="c-plan"><b>${esc(k.tariffLabel)}</b> · ${esc(fmtDuration(k.minutes))}</div>
+        <div class="c-help">Activez <b>${esc(ssid)}</b>${host ? ', scannez le QR' : ''} ou saisissez le code</div></div>${qr(k)}</div></div>`
+      : `<div class="ticket">
       <div class="t-top"><img class="t-logo" src="icons/logo-mark.png" alt="" width="40" height="40"><div class="t-brand">${brandHtml(db.settings.businessName)}<small>Wi-Fi Zone</small></div></div>
       <div class="t-body">
         <div class="t-label">Votre code de connexion</div>
         <div class="t-code">${esc(k.code.toUpperCase())}</div>
         <div class="t-plan"><span class="t-pill">${esc(k.tariffLabel)}</span><span class="t-dur">${esc(fmtDuration(k.minutes))} de connexion</span></div>
       </div>
-      <div class="t-mid"><ol class="t-steps"><li>Activez <b>${esc(ssid)}</b></li><li>${host ? 'Saisissez le code ou scannez le QR' : 'Saisissez le code ci-dessus'}</li></ol>${host ? qrSvg(`http://${host}/login?username=${k.code}`) : ''}</div>
+      <div class="t-mid"><ol class="t-steps"><li>Activez <b>${esc(ssid)}</b></li><li>${host ? 'Saisissez le code ou scannez le QR' : 'Saisissez le code ci-dessus'}</li></ol>${qr(k)}</div>
       <div class="t-foot"><span>${fc(k.price)}</span><span>1 appareil · à usage unique</span></div></div>`).join('');
     // wait for the logo so it is on paper
     const late = [...box.querySelectorAll('img')].filter(i => !i.complete);
@@ -895,6 +904,7 @@ function go(){
           <label class="field" style="flex:1;min-width:180px"><span>Nom du réseau Wi-Fi (SSID)</span><input name="ssid" value="${esc(mk.ssid)}" required></label>
           <label class="field" style="flex:1;min-width:180px"><span>WhatsApp du gérant (ex. 243970000000)</span><input name="phone" type="tel" inputmode="tel" value="${esc(mk.managerPhone || '')}" placeholder="pour les alertes et le bilan"></label>
           <label class="field" style="flex:1;min-width:180px"><span>Adresse de la page de connexion (QR)</span><input name="host" value="${esc(mk.loginHost ?? 'wifi.cispolstore')}" placeholder="wifi.cispolstore (vide = pas de QR)"></label>
+          <label class="field" style="width:150px"><span>Tickets par page A4</span><select name="pp"><option value="40" ${perPage() === 40 ? 'selected' : ''}>40 (compact)</option><option value="20" ${perPage() === 20 ? 'selected' : ''}>20 (grand)</option></select></label>
           <label class="field" style="width:130px"><span>Alerte stock sous</span><input name="low" type="number" min="1" value="${lowLimit()}"></label>
           <button class="btn" style="align-self:flex-end">Enregistrer</button>
         </form>
@@ -947,7 +957,7 @@ function go(){
     const byId = id => batches().find(b => b.id === id);
     $('#mkOn').onchange = async e => { mk.enabled = e.target.checked; await saveSettings(); toast(mk.enabled ? 'Ventes depuis le stock activées' : 'Codes libres autorisés'); };
     wireAlert(zoneId);
-    $('#mkForm').addEventListener('submit', async e => { e.preventDefault(); mk.ssid = e.target.ssid.value.trim() || mk.ssid; mk.managerPhone = e.target.phone.value.replace(/[^\d]/g, ''); mk.loginHost = e.target.host.value.trim(); mk.lowStock = Math.max(1, +e.target.low.value || 10); await saveSettings(); toast('Enregistré'); renderTickets(); });
+    $('#mkForm').addEventListener('submit', async e => { e.preventDefault(); mk.ssid = e.target.ssid.value.trim() || mk.ssid; mk.managerPhone = e.target.phone.value.replace(/[^\d]/g, ''); mk.loginHost = e.target.host.value.trim(); mk.perPage = +e.target.pp.value; mk.lowStock = Math.max(1, +e.target.low.value || 10); await saveSettings(); toast('Enregistré'); renderTickets(); });
     view.querySelector('select[name=tkZone]')?.addEventListener('change', e => { st.zoneId = e.target.value; renderTickets(); });
     $('#batchForm').addEventListener('submit', async e => {
       e.preventDefault();

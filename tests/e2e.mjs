@@ -82,6 +82,7 @@ assert.equal(await page.evaluate(() => window.__printed), 5);
 assert.ok(await page.evaluate(() => [...document.querySelectorAll('#print .t-code')].every(e => e.textContent === e.textContent.toUpperCase())), 'printed codes are in capitals');
 assert.ok(loginPage.includes('.toLowerCase()'), 'login page accepts capitals');
 assert.equal(await page.locator('#print .t-qr').count(), 5, 'each printed ticket has a QR code');
+assert.equal(await page.evaluate(() => document.querySelector('#print').className), 'p40', 'tickets print 40 per page by default');
 await shot('02-tickets');
 step('ticket batches + script + login page + print');
 

@@ -230,6 +230,7 @@ ol.small li { margin-bottom: 4px; }
   body { padding: 0; background: #fff; }
   body > *:not(#print) { display: none !important; }
   #print { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3.2mm; color: #1b2733; }
+  #print.p40 { gap: 3mm; grid-auto-rows: 25mm; }
   .ticket {
     position: relative; overflow: hidden; break-inside: avoid; text-align: center;
     border: 0.4mm solid #1e435e; border-radius: 3.5mm; background: #fff;
@@ -256,4 +257,19 @@ ol.small li { margin-bottom: 4px; }
   .t-steps li::marker { color: #d85833; font-weight: 800; }
   .t-foot { display: flex; justify-content: space-between; gap: 1mm; padding: 1.4mm 2mm; font-size: 6.3pt; font-weight: 700; color: #1e435e; background: #fdf3dc; border-top: 0.5mm solid #e5af42; }
   .t-foot span:last-child { font-weight: 600; color: #6b5a2a; }
+
+  /* compact layout: 40 tickets per A4 page (4 x 10) */
+  #print.p40 .ticket { display: flex; flex-direction: column; border-radius: 2.5mm; outline-offset: 0.9mm; text-align: left; }
+  .c-top { display: flex; align-items: center; gap: 1.4mm; padding: 0.9mm 1.8mm; background: #1e435e; color: #fff; }
+  .c-top .t-logo { width: 4.6mm; height: 4.6mm; border-radius: 1mm; padding: 0.3mm; }
+  .c-brand { flex: 1; font-weight: 800; font-size: 8pt; line-height: 1; white-space: nowrap; }
+  .c-brand .accent2 { color: #f0a58a; }
+  .c-price { background: #e5af42; color: #1e435e; font-weight: 800; font-size: 6.6pt; padding: 0.3mm 1.6mm; border-radius: 10mm; white-space: nowrap; }
+  .c-main { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: space-between; gap: 1.2mm; padding: 0.8mm 1.6mm 0.8mm 1.8mm; }
+  .c-left { flex: 1; min-width: 0; }
+  #print.p40 .t-code { font: 800 11pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; color: #1e435e; margin: 0 0 0.8mm; padding: 0.5mm 1.2mm; width: fit-content; border: 0.3mm dashed #d85833; border-radius: 1.4mm; background: #fff7f3; }
+  .c-plan { font-size: 6.4pt; color: #d85833; margin-bottom: 0.5mm; }
+  .c-plan b { font-weight: 800; }
+  .c-help { font-size: 5pt; line-height: 1.25; color: #3b4a58; }
+  #print.p40 .t-qr { flex: none; width: 16mm; height: 16mm; border: 0; border-radius: 0; }
 }
