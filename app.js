@@ -684,15 +684,22 @@
     download(`cispol-${batch.label}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
   }
 
-  function printTickets(list) {
+  async function printTickets(list) {
     const ssid = db.settings.mikrotik.ssid;
     let box = $('#print');
     if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.append(box); }
     box.innerHTML = list.map(k => `<div class="ticket">
-      <div class="t-brand">${brandHtml(db.settings.businessName)}</div>
-      <div class="t-code">${esc(k.code)}</div>
-      <div class="t-plan">${esc(k.tariffLabel)} · ${fc(k.price)}</div>
-      <div class="t-help">Wi-Fi « ${esc(ssid)} » → saisir le code</div></div>`).join('');
+      <div class="t-top"><img class="t-logo" src="icons/logo-mark.png" alt="" width="40" height="40"><div class="t-brand">${brandHtml(db.settings.businessName)}<small>Wi-Fi Zone</small></div></div>
+      <div class="t-body">
+        <div class="t-label">Votre code de connexion</div>
+        <div class="t-code">${esc(k.code)}</div>
+        <div class="t-plan"><span class="t-pill">${esc(k.tariffLabel)}</span><span class="t-dur">${esc(fmtDuration(k.minutes))} de connexion</span></div>
+      </div>
+      <ol class="t-steps"><li>Activez le Wi-Fi « <b>${esc(ssid)}</b> »</li><li>Saisissez le code ci-dessus</li></ol>
+      <div class="t-foot"><span>${fc(k.price)}</span><span>1 appareil · à usage unique</span></div></div>`).join('');
+    // wait for the logo so it is on paper
+    const late = [...box.querySelectorAll('img')].filter(i => !i.complete);
+    if (late.length) await Promise.all(late.map(i => i.decode ? i.decode().catch(() => {}) : null));
     window.print();
   }
 

@@ -77,6 +77,7 @@ for (const k of ['$(link-login-only)', '$(if chap-id)', "hexMD5('$(chap-id)'+c+'
   assert.ok(loginPage.includes(k), `login.html should contain ${k}`);
 assert.match(loginPage, /<td>Journée<\/td><td>2\s000 FC<\/td>/);
 await page.click('li:has-text("1 heure") [data-print]');
+await page.waitForFunction(() => window.__printed);   // printing waits for the logo to load
 assert.equal(await page.evaluate(() => window.__printed), 5);
 await shot('02-tickets');
 step('ticket batches + script + login page + print');

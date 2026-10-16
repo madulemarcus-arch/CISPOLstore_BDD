@@ -223,12 +223,32 @@ ol.small li { margin-bottom: 4px; }
 #print { display: none; }
 @media print {
   @page { size: A4; margin: 8mm; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { padding: 0; background: #fff; }
   body > *:not(#print) { display: none !important; }
-  #print { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; color: #000; }
-  .ticket { border: 1px dashed #555; border-radius: 3mm; padding: 3mm; text-align: center; break-inside: avoid; }
-  .t-brand { font-weight: 700; font-size: 10pt; }
-  .t-code { font: 700 15pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: .08em; margin: 1.5mm 0; }
-  .t-plan { font-size: 9pt; }
-  .t-help { font-size: 7pt; color: #333; margin-top: 1mm; }
+  #print { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; color: #1b2733; }
+  .ticket {
+    position: relative; overflow: hidden; break-inside: avoid; text-align: center;
+    border: 0.4mm solid #1e435e; border-radius: 3.5mm; background: #fff;
+    outline: 0.3mm dashed #9aa5b0; outline-offset: 1.2mm;   /* cut line */
+  }
+  .t-top { display: flex; align-items: center; justify-content: center; gap: 2.5mm; padding: 2.2mm 3mm; background: #1e435e; color: #fff; }
+  .t-logo { width: 9mm; height: 9mm; border-radius: 2mm; background: #fff; padding: 0.6mm; object-fit: contain; }
+  .t-brand { font-weight: 800; font-size: 12pt; letter-spacing: .01em; line-height: 1.05; text-align: left; }
+  .t-brand .accent2 { color: #f0a58a; }
+  .t-brand small { display: block; font-size: 6.5pt; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #e5af42; margin-top: .5mm; }
+  .t-body { padding: 2.6mm 2mm 1.4mm; }
+  .t-label { font-size: 6.5pt; letter-spacing: .14em; text-transform: uppercase; color: #6b7785; }
+  .t-code {
+    font: 800 17pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: .1em; color: #1e435e;
+    margin: 1.6mm auto 1.8mm; padding: 1.4mm 2mm; width: fit-content;
+    border: 0.35mm dashed #d85833; border-radius: 2mm; background: #fff7f3;
+  }
+  .t-plan { display: flex; align-items: center; justify-content: center; gap: 2mm; flex-wrap: wrap; font-size: 8pt; }
+  .t-pill { background: #d85833; color: #fff; font-weight: 700; padding: 0.6mm 2.4mm; border-radius: 10mm; }
+  .t-dur { color: #3b4a58; font-weight: 600; }
+  .t-steps { margin: 1.8mm 3mm 2mm; padding: 0 0 0 4mm; text-align: left; font-size: 7pt; line-height: 1.35; color: #3b4a58; }
+  .t-steps li::marker { color: #d85833; font-weight: 800; }
+  .t-foot { display: flex; justify-content: space-between; gap: 2mm; padding: 1.6mm 3mm; font-size: 7pt; font-weight: 700; color: #1e435e; background: #fdf3dc; border-top: 0.5mm solid #e5af42; }
+  .t-foot span:last-child { font-weight: 600; color: #6b5a2a; }
 }
