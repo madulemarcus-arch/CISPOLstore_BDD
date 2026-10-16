@@ -250,7 +250,9 @@ ol.small li { margin-bottom: 4px; }
   .t-plan { display: flex; align-items: center; justify-content: center; gap: 1.4mm; flex-wrap: wrap; font-size: 7pt; }
   .t-pill { background: #d85833; color: #fff; font-weight: 700; padding: 0.5mm 2mm; border-radius: 10mm; }
   .t-dur { color: #3b4a58; font-weight: 600; }
-  .t-steps { margin: 1.6mm 2mm 1.8mm; padding: 0 0 0 3.6mm; text-align: left; font-size: 6.3pt; line-height: 1.35; color: #3b4a58; }
+  .t-mid { display: flex; align-items: center; justify-content: space-between; gap: 1.5mm; margin: 0.6mm 2mm 1.4mm; }
+  .t-steps { flex: 1; margin: 0; padding: 0 0 0 3.4mm; text-align: left; font-size: 6.3pt; line-height: 1.35; color: #3b4a58; }
+  .t-qr { flex: none; width: 15mm; height: 15mm; border: 0.2mm solid #d6dbe1; border-radius: 1mm; }
   .t-steps li::marker { color: #d85833; font-weight: 800; }
   .t-foot { display: flex; justify-content: space-between; gap: 1mm; padding: 1.4mm 2mm; font-size: 6.3pt; font-weight: 700; color: #1e435e; background: #fdf3dc; border-top: 0.5mm solid #e5af42; }
   .t-foot span:last-child { font-weight: 600; color: #6b5a2a; }

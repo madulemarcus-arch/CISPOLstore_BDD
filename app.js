@@ -196,6 +196,7 @@
   }
 
   const mikrotikOn = () => !!db.settings.mikrotik?.enabled;
+  const loginHost = () => String(db.settings.mikrotik?.loginHost ?? 'wifi.cispolstore').trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   const lowLimit = () => Math.max(1, +db.settings.mikrotik?.lowStock || 10);
   const managerPhone = () => String(db.settings.mikrotik?.managerPhone || '').replace(/\D/g, '');
   // Tariffs whose ticket stock is under the alert threshold, per zone (empty when tickets are not managed in the router)
@@ -717,8 +718,79 @@
     download(`cispol-${batch.label}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
   }
 
+  // ---------- QR code ----------
+  // Minimal QR encoder (byte mode, error correction L, versions 1-6, enough for a login link): returns a boolean matrix.
+  function qrMatrix(text) {
+    const data = [...new TextEncoder().encode(text)];
+    const ECC = [7, 10, 15, 20, 26, 18], BLK = [1, 1, 1, 1, 1, 2];
+    const rawModules = v => { let r = (16 * v + 128) * v + 64; if (v >= 2) { const a = Math.floor(v / 7) + 2; r -= (25 * a - 10) * a - 55; } return r; };
+    let ver = 1;
+    for (; ver <= 6; ver++) if (data.length * 8 + 12 <= ((rawModules(ver) >> 3) - ECC[ver - 1] * BLK[ver - 1]) * 8) break;
+    if (ver > 6) return null;
+    const rawCw = rawModules(ver) >> 3, nb = BLK[ver - 1], eccLen = ECC[ver - 1], dataCw = rawCw - eccLen * nb;
+    // data bits: mode 0100, 8-bit length, bytes, terminator, padding
+    const bits = [], put = (v, n) => { for (let i = n - 1; i >= 0; i--) bits.push((v >>> i) & 1); };
+    put(4, 4); put(data.length, 8); data.forEach(b => put(b, 8));
+    put(0, Math.min(4, dataCw * 8 - bits.length));
+    while (bits.length % 8) bits.push(0);
+    for (let pad = 0xEC; bits.length < dataCw * 8; pad ^= 0xEC ^ 0x11) put(pad, 8);
+    const cw = []; for (let i = 0; i < bits.length; i += 8) cw.push(parseInt(bits.slice(i, i + 8).join(''), 2));
+    // Reed-Solomon over GF(256)
+    const mul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z; };
+    const div = new Array(eccLen).fill(0); div[eccLen - 1] = 1;
+    for (let i = 0, root = 1; i < eccLen; i++, root = mul(root, 2)) for (let j = 0; j < eccLen; j++) { div[j] = mul(div[j], root); if (j + 1 < eccLen) div[j] ^= div[j + 1]; }
+    const rem = d => { const r = new Array(eccLen).fill(0); for (const b of d) { const f = b ^ r.shift(); r.push(0); div.forEach((c, i) => { r[i] ^= mul(c, f); }); } return r; };
+    const numShort = nb - rawCw % nb, shortLen = Math.floor(rawCw / nb), blocks = [];
+    for (let i = 0, k = 0; i < nb; i++) { const len = shortLen - eccLen + (i < numShort ? 0 : 1), d = cw.slice(k, k + len); k += len; const e = rem(d); if (i < numShort) d.push(0); blocks.push(d.concat(e)); }
+    const all = [];
+    for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== shortLen - eccLen || j >= numShort) all.push(b[i]); });
+    // function patterns
+    const size = ver * 4 + 17, m = Array.from({ length: size }, () => new Array(size).fill(false)), fn = Array.from({ length: size }, () => new Array(size).fill(false));
+    const set = (x, y, d) => { m[y][x] = d; fn[y][x] = true; };
+    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    const finder = (cx, cy) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy; if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4); } };
+    finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+    if (ver > 1) { const last = ver * 4 + 10; for (const [a, b] of [[last, last]]) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(a + dx, b + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1); }
+    const fmt = mask => {
+      const d = (1 << 3) | mask; let r = d; for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+      const f = ((d << 10) | r) ^ 0x5412, g = i => ((f >>> i) & 1) !== 0;
+      for (let i = 0; i <= 5; i++) set(8, i, g(i)); set(8, 7, g(6)); set(8, 8, g(7)); set(7, 8, g(8)); for (let i = 9; i < 15; i++) set(14 - i, 8, g(i));
+      for (let i = 0; i < 8; i++) set(size - 1 - i, 8, g(i)); for (let i = 8; i < 15; i++) set(8, size - 15 + i, g(i)); set(8, size - 8, true);
+    };
+    fmt(0);
+    // codewords, zig-zag
+    for (let right = size - 1, k = 0; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+        const x = right - j, y = ((right + 1) & 2) === 0 ? size - 1 - vert : vert;
+        if (!fn[y][x] && k < all.length * 8) { m[y][x] = ((all[k >>> 3] >>> (7 - (k & 7))) & 1) !== 0; k++; }
+      }
+    }
+    // mask choice: lowest penalty (long runs, 2x2 blocks, dark/light balance)
+    const MASK = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x, y) => x % 3 === 0, (x, y) => (x + y) % 3 === 0, (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0,
+      (x, y) => x * y % 2 + x * y % 3 === 0, (x, y) => (x * y % 2 + x * y % 3) % 2 === 0, (x, y) => ((x + y) % 2 + x * y % 3) % 2 === 0];
+    const apply = mask => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fn[y][x] && MASK[mask](x, y)) m[y][x] = !m[y][x]; };
+    const penalty = () => {
+      let p = 0, dark = 0;
+      for (let t = 0; t < 2; t++) for (let a = 0; a < size; a++) { let run = 1; for (let b = 1; b < size; b++) { const cur = t ? m[b][a] : m[a][b], prev = t ? m[b - 1][a] : m[a][b - 1]; if (cur === prev) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1; } }
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { if (m[y][x]) dark++; if (x && y && m[y][x] === m[y][x - 1] && m[y][x] === m[y - 1][x] && m[y][x] === m[y - 1][x - 1]) p += 3; }
+      return p + Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+    };
+    let best = 0, bestP = Infinity;
+    for (let mask = 0; mask < 8; mask++) { apply(mask); fmt(mask); const p = penalty(); if (p < bestP) { best = mask; bestP = p; } apply(mask); }
+    apply(best); fmt(best);
+    return m;
+  }
+  // QR as inline SVG (dark modules as one path, 3-module quiet zone)
+  function qrSvg(text) {
+    const m = qrMatrix(text); if (!m) return '';
+    const n = m.length, q = 3;
+    let d = ''; m.forEach((row, y) => row.forEach((on, x) => { if (on) d += `M${x + q} ${y + q}h1v1h-1z`; }));
+    return `<svg class="t-qr" viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" shape-rendering="crispEdges" role="img" aria-label="QR code de connexion"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+  }
+
   async function printTickets(list) {
-    const ssid = db.settings.mikrotik.ssid;
+    const ssid = db.settings.mikrotik.ssid, host = loginHost();
     let box = $('#print');
     if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.append(box); }
     box.innerHTML = list.map(k => `<div class="ticket">
@@ -728,7 +800,7 @@
         <div class="t-code">${esc(k.code.toUpperCase())}</div>
         <div class="t-plan"><span class="t-pill">${esc(k.tariffLabel)}</span><span class="t-dur">${esc(fmtDuration(k.minutes))} de connexion</span></div>
       </div>
-      <ol class="t-steps"><li>Activez <b>${esc(ssid)}</b></li><li>Saisissez le code ci-dessus</li></ol>
+      <div class="t-mid"><ol class="t-steps"><li>Activez <b>${esc(ssid)}</b></li><li>${host ? 'Saisissez le code ou scannez le QR' : 'Saisissez le code ci-dessus'}</li></ol>${host ? qrSvg(`http://${host}/login?username=${k.code}`) : ''}</div>
       <div class="t-foot"><span>${fc(k.price)}</span><span>1 appareil · à usage unique</span></div></div>`).join('');
     // wait for the logo so it is on paper
     const late = [...box.querySelectorAll('img')].filter(i => !i.complete);
@@ -822,6 +894,7 @@ function go(){
         <form id="mkForm" class="row">
           <label class="field" style="flex:1;min-width:180px"><span>Nom du réseau Wi-Fi (SSID)</span><input name="ssid" value="${esc(mk.ssid)}" required></label>
           <label class="field" style="flex:1;min-width:180px"><span>WhatsApp du gérant (ex. 243970000000)</span><input name="phone" type="tel" inputmode="tel" value="${esc(mk.managerPhone || '')}" placeholder="pour les alertes et le bilan"></label>
+          <label class="field" style="flex:1;min-width:180px"><span>Adresse de la page de connexion (QR)</span><input name="host" value="${esc(mk.loginHost ?? 'wifi.cispolstore')}" placeholder="wifi.cispolstore (vide = pas de QR)"></label>
           <label class="field" style="width:130px"><span>Alerte stock sous</span><input name="low" type="number" min="1" value="${lowLimit()}"></label>
           <button class="btn" style="align-self:flex-end">Enregistrer</button>
         </form>
@@ -874,7 +947,7 @@ function go(){
     const byId = id => batches().find(b => b.id === id);
     $('#mkOn').onchange = async e => { mk.enabled = e.target.checked; await saveSettings(); toast(mk.enabled ? 'Ventes depuis le stock activées' : 'Codes libres autorisés'); };
     wireAlert(zoneId);
-    $('#mkForm').addEventListener('submit', async e => { e.preventDefault(); mk.ssid = e.target.ssid.value.trim() || mk.ssid; mk.managerPhone = e.target.phone.value.replace(/[^\d]/g, ''); mk.lowStock = Math.max(1, +e.target.low.value || 10); await saveSettings(); toast('Enregistré'); renderTickets(); });
+    $('#mkForm').addEventListener('submit', async e => { e.preventDefault(); mk.ssid = e.target.ssid.value.trim() || mk.ssid; mk.managerPhone = e.target.phone.value.replace(/[^\d]/g, ''); mk.loginHost = e.target.host.value.trim(); mk.lowStock = Math.max(1, +e.target.low.value || 10); await saveSettings(); toast('Enregistré'); renderTickets(); });
     view.querySelector('select[name=tkZone]')?.addEventListener('change', e => { st.zoneId = e.target.value; renderTickets(); });
     $('#batchForm').addEventListener('submit', async e => {
       e.preventDefault();
