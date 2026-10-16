@@ -9,7 +9,7 @@ Every step checks before adding, so importing the file twice is harmless.
 
 Usage:
   python3 generer_config.py --modele "hAP ax2" --zone "Zone Basoko" --mot-de-passe "..." \
-      [--ssid "CispolStore WiFi"] [--ros 7] [--wifi wifi|wireless|aucun] [--sortie fichier.rsc]
+      [--ssid "MALWEKA WIFI zone"] [--ros 7] [--wifi wifi|wireless|aucun] [--sortie fichier.rsc]
   python3 generer_config.py --liste-modeles
 """
 import argparse
@@ -137,7 +137,7 @@ def main():
     ap.add_argument("--modele")
     ap.add_argument("--zone")
     ap.add_argument("--mot-de-passe", dest="mdp")
-    ap.add_argument("--ssid", default="CispolStore WiFi")
+    ap.add_argument("--ssid", default="MALWEKA WIFI zone")
     ap.add_argument("--ros", type=int, choices=[6, 7])
     ap.add_argument("--wifi", choices=["wifi", "wireless", "aucun"])
     ap.add_argument("--dns-name", default="wifi.cispolstore")

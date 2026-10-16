@@ -226,29 +226,29 @@ ol.small li { margin-bottom: 4px; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { padding: 0; background: #fff; }
   body > *:not(#print) { display: none !important; }
-  #print { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; color: #1b2733; }
+  #print { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3.2mm; color: #1b2733; }
   .ticket {
     position: relative; overflow: hidden; break-inside: avoid; text-align: center;
     border: 0.4mm solid #1e435e; border-radius: 3.5mm; background: #fff;
     outline: 0.3mm dashed #9aa5b0; outline-offset: 1.2mm;   /* cut line */
   }
-  .t-top { display: flex; align-items: center; justify-content: center; gap: 2.5mm; padding: 2.2mm 3mm; background: #1e435e; color: #fff; }
-  .t-logo { width: 9mm; height: 9mm; border-radius: 2mm; background: #fff; padding: 0.6mm; object-fit: contain; }
-  .t-brand { font-weight: 800; font-size: 12pt; letter-spacing: .01em; line-height: 1.05; text-align: left; }
+  .t-top { display: flex; align-items: center; justify-content: center; gap: 1.8mm; padding: 1.8mm 2mm; background: #1e435e; color: #fff; }
+  .t-logo { width: 7.5mm; height: 7.5mm; border-radius: 1.6mm; background: #fff; padding: 0.6mm; object-fit: contain; }
+  .t-brand { font-weight: 800; font-size: 9.5pt; letter-spacing: .01em; line-height: 1.05; text-align: left; }
   .t-brand .accent2 { color: #f0a58a; }
-  .t-brand small { display: block; font-size: 6.5pt; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #e5af42; margin-top: .5mm; }
-  .t-body { padding: 2.6mm 2mm 1.4mm; }
-  .t-label { font-size: 6.5pt; letter-spacing: .14em; text-transform: uppercase; color: #6b7785; }
+  .t-brand small { display: block; font-size: 5.5pt; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #e5af42; margin-top: .5mm; }
+  .t-body { padding: 2.2mm 1.5mm 1.2mm; }
+  .t-label { font-size: 5.5pt; letter-spacing: .12em; text-transform: uppercase; color: #6b7785; }
   .t-code {
-    font: 800 17pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: .1em; color: #1e435e;
-    margin: 1.6mm auto 1.8mm; padding: 1.4mm 2mm; width: fit-content;
+    font: 800 13.5pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; color: #1e435e;
+    margin: 1.4mm auto 1.6mm; padding: 1.2mm 1.4mm; width: fit-content;
     border: 0.35mm dashed #d85833; border-radius: 2mm; background: #fff7f3;
   }
-  .t-plan { display: flex; align-items: center; justify-content: center; gap: 2mm; flex-wrap: wrap; font-size: 8pt; }
-  .t-pill { background: #d85833; color: #fff; font-weight: 700; padding: 0.6mm 2.4mm; border-radius: 10mm; }
+  .t-plan { display: flex; align-items: center; justify-content: center; gap: 1.4mm; flex-wrap: wrap; font-size: 7pt; }
+  .t-pill { background: #d85833; color: #fff; font-weight: 700; padding: 0.5mm 2mm; border-radius: 10mm; }
   .t-dur { color: #3b4a58; font-weight: 600; }
-  .t-steps { margin: 1.8mm 3mm 2mm; padding: 0 0 0 4mm; text-align: left; font-size: 7pt; line-height: 1.35; color: #3b4a58; }
+  .t-steps { margin: 1.6mm 2mm 1.8mm; padding: 0 0 0 3.6mm; text-align: left; font-size: 6.3pt; line-height: 1.35; color: #3b4a58; }
   .t-steps li::marker { color: #d85833; font-weight: 800; }
-  .t-foot { display: flex; justify-content: space-between; gap: 2mm; padding: 1.6mm 3mm; font-size: 7pt; font-weight: 700; color: #1e435e; background: #fdf3dc; border-top: 0.5mm solid #e5af42; }
+  .t-foot { display: flex; justify-content: space-between; gap: 1mm; padding: 1.4mm 2mm; font-size: 6.3pt; font-weight: 700; color: #1e435e; background: #fdf3dc; border-top: 0.5mm solid #e5af42; }
   .t-foot span:last-child { font-weight: 600; color: #6b5a2a; }
 }

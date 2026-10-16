@@ -8,7 +8,7 @@ C'est une **application web installable (PWA)** : elle s'installe sur l'écran d
 
 - **Comptes avec code PIN** (4 à 6 chiffres) : un gérant et des agents. Après 5 PIN erronés, le compte est bloqué pendant 30 s, et l'appli se verrouille après 5 min d'inactivité.
 - **Vendre** : choix du forfait, paiement en cash, Mobile Money ou gratuit. L'appli prend le prochain ticket MikroTik en stock (ex. `k7qm3xpa`), ou on saisit le code d'un ticket imprimé : le forfait est alors repris du ticket. Le code peut être copié ou envoyé au client.
-- **Tickets MikroTik** (gérant) : génération de lots par forfait et par zone, avec le script `.rsc` qui crée les utilisateurs Hotspot dans le routeur. On peut aussi imprimer les tickets (A4, 3 par ligne, avec logo, code encadré, durée, prix et mode d’emploi aux couleurs CISPOLstore), suivre le stock (en stock, vendus, annulés) et télécharger la page de connexion `login.html` aux couleurs de CISPOLstore avec les tarifs.
+- **Tickets MikroTik** (gérant) : génération de lots par forfait et par zone, avec le script `.rsc` qui crée les utilisateurs Hotspot dans le routeur. On peut aussi imprimer les tickets (A4, 4 par ligne, avec logo, code encadré, durée, prix et mode d’emploi aux couleurs CISPOLstore), suivre le stock (en stock, vendus, annulés) et télécharger la page de connexion `login.html` aux couleurs de CISPOLstore avec les tarifs.
 - **Rapport journalier** (structure de l'Annexe B) : clients, vouchers par forfait, recettes cash et Mobile Money, total, vouchers gratuits, incidents. Il s'envoie par WhatsApp en un clic. Le gérant peut annuler une vente en indiquant un motif.
 - **Tableau de bord** (gérant) :
   - clients du jour comparés au seuil de rentabilité (49/jour), CA et résultat du mois (CA − charges), panier moyen ;

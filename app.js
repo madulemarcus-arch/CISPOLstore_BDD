@@ -27,7 +27,7 @@
 
   const DEFAULT_TARGETS = [50, 65, 80, 90, 100, 110, 120, 130, 140, 150, 165, 180];
   const PAYMENTS = { cash: 'Cash', mm: 'Mobile Money', free: 'Gratuit' };
-  const DEFAULT_MIKROTIK = { enabled: true, ssid: 'CispolStore WiFi' };
+  const DEFAULT_MIKROTIK = { enabled: true, ssid: 'MALWEKA WIFI zone' };
   const TICKET_STATUS = { stock: 'En stock', sold: 'Vendu', void: 'Annulé' };
   const MAX_BATCH = 500;
   const LOCK_AFTER_MS = 5 * 60 * 1000;
@@ -695,7 +695,7 @@
         <div class="t-code">${esc(k.code)}</div>
         <div class="t-plan"><span class="t-pill">${esc(k.tariffLabel)}</span><span class="t-dur">${esc(fmtDuration(k.minutes))} de connexion</span></div>
       </div>
-      <ol class="t-steps"><li>Activez le Wi-Fi « <b>${esc(ssid)}</b> »</li><li>Saisissez le code ci-dessus</li></ol>
+      <ol class="t-steps"><li>Activez <b>${esc(ssid)}</b></li><li>Saisissez le code ci-dessus</li></ol>
       <div class="t-foot"><span>${fc(k.price)}</span><span>1 appareil · à usage unique</span></div></div>`).join('');
     // wait for the logo so it is on paper
     const late = [...box.querySelectorAll('img')].filter(i => !i.complete);
@@ -1246,6 +1246,10 @@ function go(){
     if (db.settings && !db.settings.mikrotik) { // data created by v1
       db.settings.mikrotik = { ...DEFAULT_MIKROTIK };
       db.settings.tariffs.forEach(t => { t.rateLimit = t.rateLimit || ''; });
+      await saveSettings();
+    }
+    if (db.settings && db.settings.mikrotik && db.settings.mikrotik.ssid === 'CispolStore WiFi') { // old default network name
+      db.settings.mikrotik.ssid = DEFAULT_MIKROTIK.ssid;
       await saveSettings();
     }
     restoreSession();
