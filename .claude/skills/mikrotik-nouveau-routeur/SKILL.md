@@ -20,7 +20,7 @@ Demande (ou fais vérifier dans Winbox) :
 2. **Version RouterOS** : System → Packages (v6.x ou v7.x). Ce guide vise la **v7** ; les différences v6 sont signalées. Si le routeur est en v6.48 ou plus ancien, propose la mise à jour (System → Packages → Check For Updates → Download&Install) avant de configurer.
 3. **Comment arrive Internet** : Starlink en mode **bypass** (recommandé : le MikroTik reçoit Internet directement sur `ether1`) ou Starlink routeur normal (double NAT, ça marche aussi).
 4. **Où diffuser le Wi-Fi** : Wi-Fi intégré du MikroTik, ou points d'accès séparés (Ubiquiti, etc.) branchés sur un port/switch.
-5. Le **nom de la zone** et le **nom du réseau** (SSID) choisis dans l'appli (onglet Tickets), par défaut « CispolStore WiFi ».
+5. Le **nom de la zone** et le **nom du réseau** (SSID) choisis dans l'appli (onglet Tickets), par défaut « MALWEKA WIFI zone ».
 
 Pour les débutants : Winbox se télécharge sur mikrotik.com (PC Windows). Sur téléphone, l'appli officielle « MikroTik » (Android) permet aussi le terminal et les menus.
 
@@ -38,7 +38,7 @@ Le script `scripts/generer_config.py` (dans le dossier de cette compétence, Pyt
 1. Recueille : modèle exact (System → RouterBOARD), version RouterOS, nom de la zone, nom du Wi-Fi (celui de l'appli, onglet Tickets), mot de passe admin choisi par l'utilisateur (8 caractères minimum, lettres et chiffres, sans accents ni `" $ \`).
 2. Génère :
    ```bash
-   python3 <dossier-de-la-competence>/scripts/generer_config.py --modele "hAP ax2" --zone "Zone Basoko" --mot-de-passe "..." --ssid "CispolStore WiFi" --sortie cispol-config-basoko.rsc
+   python3 <dossier-de-la-competence>/scripts/generer_config.py --modele "hAP ax2" --zone "Zone Basoko" --mot-de-passe "..." --ssid "MALWEKA WIFI zone" --sortie cispol-config-basoko.rsc
    ```
    `--liste-modeles` affiche les modèles connus (Wi-Fi, nombre de clients raisonnable, remarques). Pour un modèle inconnu, ajoute `--wifi wifi` (menu « WiFi » dans Winbox), `--wifi wireless` (menu « Wireless ») ou `--wifi aucun`, et `--ros 6` si le routeur est en v6.
 3. Donne le fichier à l'utilisateur, puis guide :

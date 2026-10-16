@@ -27,7 +27,7 @@
 
   const DEFAULT_TARGETS = [50, 65, 80, 90, 100, 110, 120, 130, 140, 150, 165, 180];
   const PAYMENTS = { cash: 'Cash', mm: 'Mobile Money', free: 'Gratuit' };
-  const DEFAULT_MIKROTIK = { enabled: true, ssid: 'CispolStore WiFi' };
+  const DEFAULT_MIKROTIK = { enabled: true, ssid: 'MALWEKA WIFI zone' };
   const TICKET_STATUS = { stock: 'En stock', sold: 'Vendu', void: 'Annulé' };
   const MAX_BATCH = 500;
   const LOCK_AFTER_MS = 5 * 60 * 1000;
@@ -467,7 +467,9 @@
       if (st.manualOpen) $('#manualCode').focus();
     });
     $('#sellBtn').addEventListener('click', async () => {
-      const manual = $('#manualCode').value.replace(/\s+/g, '');
+      let manual = $('#manualCode').value.replace(/\s+/g, '');
+      const printed = db.tickets.find(x => x.code.toLowerCase() === manual.toLowerCase());   // tickets are printed in capitals
+      if (printed) manual = printed.code;
       let t = tariffs.find(x => x.id === st.tariffId);
       let ticket = null;
       if (manual) {
@@ -684,15 +686,22 @@
     download(`cispol-${batch.label}.csv`, toCsv(rows), 'text/csv;charset=utf-8');
   }
 
-  function printTickets(list) {
+  async function printTickets(list) {
     const ssid = db.settings.mikrotik.ssid;
     let box = $('#print');
     if (!box) { box = document.createElement('div'); box.id = 'print'; document.body.append(box); }
     box.innerHTML = list.map(k => `<div class="ticket">
-      <div class="t-brand">${brandHtml(db.settings.businessName)}</div>
-      <div class="t-code">${esc(k.code)}</div>
-      <div class="t-plan">${esc(k.tariffLabel)} · ${fc(k.price)}</div>
-      <div class="t-help">Wi-Fi « ${esc(ssid)} » → saisir le code</div></div>`).join('');
+      <div class="t-top"><img class="t-logo" src="icons/logo-mark.png" alt="" width="40" height="40"><div class="t-brand">${brandHtml(db.settings.businessName)}<small>Wi-Fi Zone</small></div></div>
+      <div class="t-body">
+        <div class="t-label">Votre code de connexion</div>
+        <div class="t-code">${esc(k.code.toUpperCase())}</div>
+        <div class="t-plan"><span class="t-pill">${esc(k.tariffLabel)}</span><span class="t-dur">${esc(fmtDuration(k.minutes))} de connexion</span></div>
+      </div>
+      <ol class="t-steps"><li>Activez <b>${esc(ssid)}</b></li><li>Saisissez le code ci-dessus</li></ol>
+      <div class="t-foot"><span>${fc(k.price)}</span><span>1 appareil · à usage unique</span></div></div>`).join('');
+    // wait for the logo so it is on paper
+    const late = [...box.querySelectorAll('img')].filter(i => !i.complete);
+    if (late.length) await Promise.all(late.map(i => i.decode ? i.decode().catch(() => {}) : null));
     window.print();
   }
 
@@ -750,7 +759,7 @@ $(if error)<div class="err">$(error)</div>$(endif)
 </main>
 <script>
 function go(){
-  var f=document.login, c=f.username.value.replace(/\\s+/g,'');
+  var f=document.login, c=f.username.value.replace(/\\s+/g,'').toLowerCase();   // codes are printed in capitals, the router stores them in lowercase
   f.username.value=c; f.password.value=c;
   $(if chap-id)
   document.sendin.username.value=c;
@@ -1239,6 +1248,10 @@ function go(){
     if (db.settings && !db.settings.mikrotik) { // data created by v1
       db.settings.mikrotik = { ...DEFAULT_MIKROTIK };
       db.settings.tariffs.forEach(t => { t.rateLimit = t.rateLimit || ''; });
+      await saveSettings();
+    }
+    if (db.settings && db.settings.mikrotik && db.settings.mikrotik.ssid === 'CispolStore WiFi') { // old default network name
+      db.settings.mikrotik.ssid = DEFAULT_MIKROTIK.ssid;
       await saveSettings();
     }
     restoreSession();

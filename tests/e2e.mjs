@@ -73,11 +73,14 @@ await batch('7 jours', 1);
 await page.waitForSelector('text=L' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-05');
 const [login] = await Promise.all([page.waitForEvent('download'), page.click('#dlLogin')]);
 const loginPage = await readFile(await login.path(), 'utf8');
-for (const k of ['$(link-login-only)', '$(if chap-id)', "hexMD5('$(chap-id)'+c+'$(chap-challenge)')", '$(if error)', 'CispolStore WiFi', 'src="data:image/png;base64,'])
+for (const k of ['$(link-login-only)', '$(if chap-id)', "hexMD5('$(chap-id)'+c+'$(chap-challenge)')", '$(if error)', 'MALWEKA WIFI zone', 'src="data:image/png;base64,'])
   assert.ok(loginPage.includes(k), `login.html should contain ${k}`);
 assert.match(loginPage, /<td>Journée<\/td><td>2\s000 FC<\/td>/);
 await page.click('li:has-text("1 heure") [data-print]');
+await page.waitForFunction(() => window.__printed);   // printing waits for the logo to load
 assert.equal(await page.evaluate(() => window.__printed), 5);
+assert.ok(await page.evaluate(() => [...document.querySelectorAll('#print .t-code')].every(e => e.textContent === e.textContent.toUpperCase())), 'printed codes are in capitals');
+assert.ok(loginPage.includes('.toLowerCase()'), 'login page accepts capitals');
 await shot('02-tickets');
 step('ticket batches + script + login page + print');
 
@@ -98,7 +101,7 @@ await page.click('[data-m=close]');
 await page.waitForSelector('.tariff:has-text("1 heure") .stock:has-text("4 en stock")');
 await sell('3 heures', 'mm'); await page.click('[data-m=close]');
 await sell('30 minutes', 'free'); await page.click('[data-m=close]');
-assert.equal(await sell(null, 'cash', ' ' + day.codes[1] + ' '), day.codes[1]);
+assert.equal(await sell(null, 'cash', ' ' + day.codes[1].toUpperCase() + ' '), day.codes[1]);   // typed from the printed (capital) ticket
 assert.ok((await page.textContent('dialog .voucher')).includes('Journée'), 'tariff comes from the printed ticket');
 await page.click('[data-m=close]');
 await page.waitForSelector('.tariff:has-text("Journée") .stock:has-text("1 en stock")');
