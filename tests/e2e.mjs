@@ -121,6 +121,11 @@ await page.waitForSelector('text=Rapport journalier');
 const report = await page.textContent('main');
 for (const expected of ['Clients3', 'Recettes cash2 500 FC', 'Recettes Mobile Money1 000 FC', 'Total recettes3 500 FC', 'Vouchers gratuits1'])
   assert.ok(report.replace(/\s/g, '').includes(expected.replace(/\s/g, '')), `report should contain "${expected}"`);
+assert.ok(await page.isVisible('.stockwarn'), 'low ticket stock is flagged');
+await page.evaluate(() => { window.__opened = ''; window.open = u => { window.__opened = u; }; navigator.share = undefined; });
+await page.click('#repShare');
+const shared = decodeURIComponent(await page.evaluate(() => window.__opened));
+assert.ok(shared.includes('BILAN DU JOUR') && shared.includes('Tickets en stock') && shared.includes('Stock bas'), 'daily summary carries stock and alerts');
 await page.fill('#incForm input', 'Coupure électricité 14h-15h');
 await page.click('#incForm button');
 await page.waitForSelector('text=Coupure électricité 14h-15h');
