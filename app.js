@@ -98,7 +98,8 @@
     catch { prompt('Copiez le texte :', text); }
   }
 
-  async function shareText(text) {
+  async function shareText(text, phone = '') {
+    if (phone) { window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank'); return; }   // straight to the manager's chat
     if (navigator.share) {
       try { await navigator.share({ text }); return; } catch (e) { if (e.name === 'AbortError') return; }
     }
@@ -195,6 +196,25 @@
   }
 
   const mikrotikOn = () => !!db.settings.mikrotik?.enabled;
+  const lowLimit = () => Math.max(1, +db.settings.mikrotik?.lowStock || 10);
+  const managerPhone = () => String(db.settings.mikrotik?.managerPhone || '').replace(/\D/g, '');
+  // Tariffs whose ticket stock is under the alert threshold, per zone (empty when tickets are not managed in the router)
+  function stockAlerts(zoneId) {
+    if (!mikrotikOn()) return [];
+    const zones = zoneId ? db.zones.filter(z => z.id === zoneId) : activeZones();
+    const out = [];
+    for (const z of zones) for (const t of activeTariffs()) { const n = stockOf(z.id, t.id).length; if (n < lowLimit()) out.push({ zone: z, tariff: t, n }); }
+    return out;
+  }
+  const alertLines = list => list.map(a => `• ${a.tariff.label}${activeZones().length > 1 ? ' (' + a.zone.name + ')' : ''} : ${a.n ? 'plus que ' + a.n : 'plus aucun'}`);
+  const alertText = list => `⚠️ ${db.settings.businessName} – stock de tickets bas\n${alertLines(list).join('\n')}\nMerci de générer un nouveau lot.`;
+  function alertBanner(zoneId) {
+    const list = stockAlerts(zoneId); if (!list.length) return '';
+    return `<div class="notice stockwarn"><strong>⚠️ Stock de tickets bas</strong>
+      <ul class="list-plain">${alertLines(list).map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+      ${isManager() ? '<a class="btn sm" href="#/tickets">Générer un lot</a>' : `<button class="btn sm" data-alert-send>📤 Prévenir le gérant</button>`}</div>`;
+  }
+  function wireAlert(zoneId) { view.querySelectorAll('[data-alert-send]').forEach(b => b.onclick = () => shareText(alertText(stockAlerts(zoneId)), managerPhone())); }
   const stockOf = (zoneId, tariffId) => db.tickets.filter(t => t.status === 'stock' && t.zoneId === zoneId && (!tariffId || t.tariffId === tariffId));
   const allCodes = () => new Set([...db.tickets.map(t => t.code), ...db.sales.map(s => s.code)]);
 
@@ -420,12 +440,13 @@
         <div class="row between"><h1>Nouvelle vente</h1>
           ${isManager() && activeZones().length > 1 ? `<div style="min-width:160px">${zoneSelect('zone', st.zoneId)}</div>` : `<span class="muted small">📍 ${esc(zoneName(st.zoneId))}</span>`}
         </div>
+        ${mk ? alertBanner(st.zoneId) : ''}
         ${mk && !stockOf(st.zoneId).length ? `<p class="notice">Aucun ticket MikroTik en stock pour cette zone. ${isManager() ? 'Générez un lot dans <a href="#/tickets">Tickets</a>.' : 'Demandez au gérant de générer un lot.'} En attendant, vous pouvez saisir le code d’un ticket imprimé.</p>` : ''}
         <h3>Forfait</h3>
         <div class="tariffs">
           ${tariffs.map(t => `<button class="tariff" data-tariff="${t.id}" aria-pressed="${t.id === st.tariffId}">
             <b>${esc(t.label)}${t.student ? '<span class="tag">Étudiant</span>' : ''}</b><span class="price">${fc(t.price)}</span>
-            ${mk ? `<span class="stock ${stock(t.id) ? (stock(t.id) < 10 ? 'low' : '') : 'none'}">${stock(t.id)} en stock</span>` : ''}</button>`).join('')}
+            ${mk ? `<span class="stock ${stock(t.id) ? (stock(t.id) < lowLimit() ? 'low' : '') : 'none'}">${stock(t.id)} en stock</span>` : ''}</button>`).join('')}
         </div>
         <h3>Paiement</h3>
         <div class="seg" role="group" aria-label="Mode de paiement">
@@ -466,6 +487,7 @@
       $('#sellBtn').disabled = !st.tariffId && !st.manualOpen;
       if (st.manualOpen) $('#manualCode').focus();
     });
+    wireAlert(st.zoneId);
     $('#sellBtn').addEventListener('click', async () => {
       let manual = $('#manualCode').value.replace(/\s+/g, '');
       const printed = db.tickets.find(x => x.code.toLowerCase() === manual.toLowerCase());   // tickets are printed in capitals
@@ -530,7 +552,7 @@
   function reportText(day, zoneId) {
     const { sum, incidents } = dailyReport(day, zoneId);
     const lines = [
-      `📋 RAPPORT JOURNALIER – ${db.settings.businessName}`,
+      `📋 BILAN DU JOUR – ${db.settings.businessName}`,
       `Date : ${fmtDay(day)}`,
       `Zone : ${zoneId ? zoneName(zoneId) : 'Toutes les zones'}`,
       `Clients : ${sum.clients}`,
@@ -540,8 +562,15 @@
       `Recettes Mobile Money : ${fc(sum.mm)}`,
       `Total recettes : ${fc(sum.total)}`,
       `Vouchers gratuits : ${sum.free}`,
+      `Seuil de rentabilité : ${sum.clients} / ${breakEven() * (zoneId ? 1 : Math.max(1, activeZones().length))} clients (${Math.round(100 * sum.clients / (breakEven() * (zoneId ? 1 : Math.max(1, activeZones().length))))} %)`,
       `Incidents : ${incidents.length ? incidents.map(i => `${timeOf(i.at)} ${i.text}`).join(' ; ') : 'aucun'}`,
     ];
+    if (mikrotikOn()) {
+      const left = db.settings.tariffs.filter(t => t.active).map(t => `  • ${t.label} : ${stockOf(zoneId, t.id).length}`);
+      lines.push('Tickets en stock :', ...left);
+      const low = stockAlerts(zoneId);
+      if (low.length) lines.push('⚠️ Stock bas :', ...alertLines(low));
+    }
     return lines.join('\n');
   }
 
@@ -557,6 +586,7 @@
     view.innerHTML = `
       <div class="card stack">
         <h1>Rapport journalier</h1>
+        ${alertBanner(st.zoneId)}
         <div class="grid2">
           <label class="field"><span>Date</span><input type="date" id="repDay" value="${st.day}" max="${today()}"></label>
           <label class="field"><span>Zone</span>${isManager() ? zoneSelect('repZone', st.zoneId, { allowAll: true }) : `<input value="${esc(zoneName(st.zoneId))}" disabled>`}</label>
@@ -576,7 +606,7 @@
           </tbody>
         </table></div>
         <div class="grid2">
-          <button class="btn" id="repShare">📤 Envoyer (WhatsApp)</button>
+          <button class="btn" id="repShare">📤 ${!isManager() && managerPhone() ? 'Envoyer le bilan au gérant' : 'Envoyer (WhatsApp)'}</button>
           <button class="btn" id="repCopy">📋 Copier</button>
         </div>
       </div>
@@ -598,9 +628,10 @@
           </tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Aucune vente ce jour-là.</p>'}
       </div>`;
 
+    wireAlert(st.zoneId);
     $('#repDay').addEventListener('change', e => { st.day = e.target.value || today(); renderReport(); });
     view.querySelector('select[name=repZone]')?.addEventListener('change', e => { st.zoneId = e.target.value; renderReport(); });
-    $('#repShare').onclick = () => shareText(reportText(st.day, st.zoneId));
+    $('#repShare').onclick = () => shareText(reportText(st.day, st.zoneId), isManager() ? '' : managerPhone());
     $('#repCopy').onclick = () => copyText(reportText(st.day, st.zoneId));
     $('#incForm').addEventListener('submit', async e => {
       e.preventDefault();
@@ -784,11 +815,14 @@ function go(){
     const bs = batches(zoneId);
 
     view.innerHTML = `
+      ${alertBanner(zoneId)}
       <div class="card stack">
         <h1>Tickets MikroTik</h1>
         <label class="row small" style="flex-wrap:nowrap;align-items:flex-start"><input type="checkbox" id="mkOn" ${mk.enabled ? 'checked' : ''} style="width:auto"> Vendre uniquement des tickets créés dans le routeur (stock)</label>
         <form id="mkForm" class="row">
           <label class="field" style="flex:1;min-width:180px"><span>Nom du réseau Wi-Fi (SSID)</span><input name="ssid" value="${esc(mk.ssid)}" required></label>
+          <label class="field" style="flex:1;min-width:180px"><span>WhatsApp du gérant (ex. 243970000000)</span><input name="phone" type="tel" inputmode="tel" value="${esc(mk.managerPhone || '')}" placeholder="pour les alertes et le bilan"></label>
+          <label class="field" style="width:130px"><span>Alerte stock sous</span><input name="low" type="number" min="1" value="${lowLimit()}"></label>
           <button class="btn" style="align-self:flex-end">Enregistrer</button>
         </form>
         ${activeZones().length > 1 ? `<label class="field"><span>Zone</span>${zoneSelect('tkZone', st.zoneId, { allowAll: true })}</label>` : ''}
@@ -798,7 +832,7 @@ function go(){
         <h2>Stock${zoneId ? ' · ' + esc(zoneName(zoneId)) : ''}</h2>
         <div class="table-wrap"><table><thead><tr><th>Forfait</th><th class="num">En stock</th><th class="num">Vendus</th><th class="num">Annulés</th></tr></thead><tbody>
           ${shownTariffs.map(t => { const n = count(t.id, 'stock'); return `<tr><td>${esc(t.label)}</td>
-            <td class="num">${n ? n : ''} ${n < 10 ? `<span class="status ${n ? 'warn' : 'bad'}">${n ? 'Bas' : 'Vide'}</span>` : ''}</td>
+            <td class="num">${n ? n : ''} ${n < lowLimit() ? `<span class="status ${n ? 'warn' : 'bad'}">${n ? 'Bas' : 'Vide'}</span>` : ''}</td>
             <td class="num">${count(t.id, 'sold')}</td><td class="num">${count(t.id, 'void')}</td></tr>`; }).join('')}
         </tbody></table></div>
       </div>
@@ -839,7 +873,8 @@ function go(){
 
     const byId = id => batches().find(b => b.id === id);
     $('#mkOn').onchange = async e => { mk.enabled = e.target.checked; await saveSettings(); toast(mk.enabled ? 'Ventes depuis le stock activées' : 'Codes libres autorisés'); };
-    $('#mkForm').addEventListener('submit', async e => { e.preventDefault(); mk.ssid = e.target.ssid.value.trim() || mk.ssid; await saveSettings(); toast('Enregistré'); renderTickets(); });
+    wireAlert(zoneId);
+    $('#mkForm').addEventListener('submit', async e => { e.preventDefault(); mk.ssid = e.target.ssid.value.trim() || mk.ssid; mk.managerPhone = e.target.phone.value.replace(/[^\d]/g, ''); mk.lowStock = Math.max(1, +e.target.low.value || 10); await saveSettings(); toast('Enregistré'); renderTickets(); });
     view.querySelector('select[name=tkZone]')?.addEventListener('change', e => { st.zoneId = e.target.value; renderTickets(); });
     $('#batchForm').addEventListener('submit', async e => {
       e.preventDefault();
@@ -907,6 +942,7 @@ function go(){
         ${activeZones().length > 1 ? `<label class="field"><span>Zone</span>${zoneSelect('dashZone', st.zoneId, { allowAll: true })}</label>` : ''}
       </div>
 
+      ${alertBanner(st.zoneId)}
       ${isCurrent ? `<h2>Aujourd’hui</h2>
       <div class="grid2" style="margin-bottom:14px">
         <div class="tile"><div class="label">Clients payants</div><div class="value">${t.clients} <span class="muted small">/ ${seuil}</span></div>
