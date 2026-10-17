@@ -260,16 +260,16 @@ ol.small li { margin-bottom: 4px; }
 
   /* compact layout: 40 tickets per A4 page (4 x 10) */
   #print.p40 .ticket { display: flex; flex-direction: column; border-radius: 2.5mm; outline-offset: 0.9mm; text-align: left; }
-  .c-top { display: flex; align-items: center; gap: 1.4mm; padding: 0.9mm 1.8mm; background: #1e435e; color: #fff; }
+  .c-top { display: flex; align-items: center; gap: 1.4mm; padding: 0.6mm 1.8mm; background: #1e435e; color: #fff; }
   .c-top .t-logo { width: 4.6mm; height: 4.6mm; border-radius: 1mm; padding: 0.3mm; }
-  .c-brand { flex: 1; font-weight: 800; font-size: 8pt; line-height: 1; white-space: nowrap; }
+  .c-brand { flex: 1; font-weight: 800; font-size: 9pt; line-height: 1; white-space: nowrap; }
   .c-brand .accent2 { color: #f0a58a; }
-  .c-price { background: #e5af42; color: #1e435e; font-weight: 800; font-size: 6.6pt; padding: 0.3mm 1.6mm; border-radius: 10mm; white-space: nowrap; }
-  .c-main { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: space-between; gap: 1.2mm; padding: 0.8mm 1.6mm 0.8mm 1.8mm; }
+  .c-price { background: #e5af42; color: #1e435e; font-weight: 800; font-size: 7.4pt; padding: 0.3mm 1.6mm; border-radius: 10mm; white-space: nowrap; }
+  .c-main { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: space-between; gap: 1.2mm; padding: 0.4mm 1.6mm 0.5mm 1.8mm; }
   .c-left { flex: 1; min-width: 0; }
-  #print.p40 .t-code { font: 800 11pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; color: #1e435e; margin: 0 0 0.8mm; padding: 0.5mm 1.2mm; width: fit-content; border: 0.3mm dashed #d85833; border-radius: 1.4mm; background: #fff7f3; }
-  .c-plan { font-size: 6.4pt; color: #d85833; margin-bottom: 0.5mm; }
+  #print.p40 .t-code { font: 800 12pt ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; color: #1e435e; margin: 0 0 0.5mm; padding: 0.3mm 1.2mm; width: fit-content; border: 0.3mm dashed #d85833; border-radius: 1.4mm; background: #fff7f3; }
+  .c-plan { font-size: 7.4pt; color: #d85833; margin-bottom: 0.3mm; line-height: 1.1; }
   .c-plan b { font-weight: 800; }
-  .c-help { font-size: 5pt; line-height: 1.25; color: #3b4a58; }
-  #print.p40 .t-qr { flex: none; width: 16mm; height: 16mm; border: 0; border-radius: 0; }
+  .c-help { font-size: 6.2pt; line-height: 1.12; color: #3b4a58; }
+  #print.p40 .t-qr { flex: none; width: 15mm; height: 15mm; border: 0; border-radius: 0; }
 }

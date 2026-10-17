@@ -801,7 +801,7 @@
       <div class="c-top"><img class="t-logo" src="icons/logo-mark.png" alt="" width="40" height="40"><span class="c-brand">${brandHtml(db.settings.businessName)}</span><span class="c-price">${fc(k.price)}</span></div>
       <div class="c-main"><div class="c-left"><div class="t-code">${esc(k.code.toUpperCase())}</div>
         <div class="c-plan"><b>${esc(k.tariffLabel)}</b> · ${esc(fmtDuration(k.minutes))}</div>
-        <div class="c-help">Activez <b>${esc(ssid)}</b>${host ? ', scannez le QR' : ''} ou saisissez le code</div></div>${qr(k)}</div></div>`
+        <div class="c-help">Activez <b>${esc(ssid)}</b>, puis ${host ? 'scannez le QR ou tapez' : 'tapez'} le code</div></div>${qr(k)}</div></div>`
       : `<div class="ticket">
       <div class="t-top"><img class="t-logo" src="icons/logo-mark.png" alt="" width="40" height="40"><div class="t-brand">${brandHtml(db.settings.businessName)}<small>Wi-Fi Zone</small></div></div>
       <div class="t-body">
