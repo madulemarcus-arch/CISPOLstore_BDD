@@ -128,6 +128,11 @@ await page.evaluate(() => { window.__opened = ''; window.open = u => { window.__
 await page.click('#repShare');
 const shared = decodeURIComponent(await page.evaluate(() => window.__opened));
 assert.ok(shared.includes('BILAN DU JOUR') && shared.includes('Tickets en stock') && shared.includes('Stock bas'), 'daily summary carries stock and alerts');
+// Per-seller card: the only seller so far sold 3 paying tickets + 1 free one
+const sellers = (await page.textContent('#sellerCard')).replace(/\s/g, '');
+for (const expected of ['Parvendeur', '3', '2500FC', '1000FC', '3500FC'])
+  assert.ok(sellers.includes(expected), `seller card should contain "${expected}"`);
+assert.ok(shared.includes('Par vendeur :') && shared.includes('3 client(s)'), 'daily summary lists sales per seller');
 await page.fill('#incForm input', 'Coupure électricité 14h-15h');
 await page.click('#incForm button');
 await page.waitForSelector('text=Coupure électricité 14h-15h');
@@ -136,6 +141,9 @@ await shot('05-rapport');
 await page.click('tr:has-text("1 heure") [data-void]');
 await page.waitForSelector('tr.void');
 assert.ok((await page.textContent('main')).replace(/\s/g, '').includes('Totalrecettes3000FC'));
+assert.ok((await page.textContent('#sellerCard')).includes('1 annulée'), 'cancelled sale shown on the seller row');
+await page.selectOption('#repPer', 'month');
+assert.ok((await page.textContent('#sellerCard')).replace(/\s/g, '').includes('3000FC'), 'month view of the seller card');
 step('daily report + incident + void');
 
 // Dashboard
