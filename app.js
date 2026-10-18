@@ -294,7 +294,7 @@
   const view = $('#view');
   const ui = { // per-screen UI state kept across re-renders
     sell: { tariffId: null, payment: 'cash', zoneId: null },
-    report: { day: null, zoneId: '' },
+    report: { day: null, zoneId: '', per: 'day' },
     dash: { month: null, zoneId: '' },
     tickets: { zoneId: '' },
   };
@@ -551,6 +551,23 @@
     return { list, sum, incidents };
   }
 
+  // One row per seller for a day or a month: what each one sold, by tariff and payment, plus cancelled sales.
+  // Active agents of the zone with no sale are kept so that "sold nothing" is visible too.
+  function sellerRows({ day, month, zoneId }) {
+    const all = salesWhere({ day, month, zoneId, includeVoid: true });
+    const ids = new Set(all.map(x => x.agentId));
+    for (const a of db.agents) if (a.active && (!zoneId || a.zoneId === zoneId)) ids.add(a.id);
+    return [...ids].map(id => {
+      const mine = all.filter(x => x.agentId === id);
+      return { id, name: agentName(id), sum: summarize(mine.filter(x => !x.void)), voided: mine.filter(x => x.void).length };
+    }).sort((a, b) => b.sum.total - a.sum.total || a.name.localeCompare(b.name));
+  }
+
+  function sellerLines(rows) {
+    return rows.flatMap(r => [`• ${r.name} : ${r.sum.clients} client(s), ${fc(r.sum.total)} (cash ${fc(r.sum.cash)}, MM ${fc(r.sum.mm)})${r.sum.free ? `, ${r.sum.free} gratuit(s)` : ''}${r.voided ? `, ${r.voided} annulée(s)` : ''}`,
+      ...db.settings.tariffs.filter(t => r.sum.byTariff[t.label]?.count).map(t => `    ${t.label} : ${r.sum.byTariff[t.label].count}`)]);
+  }
+
   function reportText(day, zoneId) {
     const { sum, incidents } = dailyReport(day, zoneId);
     const lines = [
@@ -567,6 +584,10 @@
       `Seuil de rentabilité : ${sum.clients} / ${breakEven() * (zoneId ? 1 : Math.max(1, activeZones().length))} clients (${Math.round(100 * sum.clients / (breakEven() * (zoneId ? 1 : Math.max(1, activeZones().length))))} %)`,
       `Incidents : ${incidents.length ? incidents.map(i => `${timeOf(i.at)} ${i.text}`).join(' ; ') : 'aucun'}`,
     ];
+    if (isManager()) {
+      const rows = sellerRows({ day, zoneId }).filter(r => r.sum.clients || r.sum.free || r.voided);
+      if (rows.length) lines.push('Par vendeur :', ...sellerLines(rows));
+    }
     if (mikrotikOn()) {
       const left = db.settings.tariffs.filter(t => t.active).map(t => `  • ${t.label} : ${stockOf(zoneId, t.id).length}`);
       lines.push('Tickets en stock :', ...left);
@@ -574,6 +595,24 @@
       if (low.length) lines.push('⚠️ Stock bas :', ...alertLines(low));
     }
     return lines.join('\n');
+  }
+
+  function sellerCard(st) {
+    const month = st.per === 'month';
+    const rows = sellerRows(month ? { month: st.day.slice(0, 7), zoneId: st.zoneId } : { day: st.day, zoneId: st.zoneId });
+    const tariffs = db.settings.tariffs.filter(t => rows.some(r => r.sum.byTariff[t.label]?.count));
+    const tot = summarize(salesWhere(month ? { month: st.day.slice(0, 7), zoneId: st.zoneId } : { day: st.day, zoneId: st.zoneId }));
+    return `<div class="card stack" id="sellerCard">
+        <div class="row between">
+          <h2>Par vendeur</h2>
+          <select id="repPer" aria-label="Période"><option value="day" ${month ? '' : 'selected'}>Ce jour</option><option value="month" ${month ? 'selected' : ''}>Tout ${esc(fmtMonth(st.day.slice(0, 7)))}</option></select>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Vendeur</th>${tariffs.map(t => `<th class="num">${esc(t.label)}</th>`).join('')}<th class="num">Clients</th><th class="num">Cash</th><th class="num">MM</th><th class="num">Gratuits</th><th class="num">Total</th></tr></thead>
+          <tbody>${rows.map(r => `<tr><td>${esc(r.name)}${r.voided ? ` <span class="muted small">(${r.voided} annulée${r.voided > 1 ? 's' : ''})</span>` : ''}</td>${tariffs.map(t => `<td class="num">${r.sum.byTariff[t.label]?.count || 0}</td>`).join('')}<td class="num">${r.sum.clients}</td><td class="num">${fc(r.sum.cash)}</td><td class="num">${fc(r.sum.mm)}</td><td class="num">${r.sum.free}</td><td class="num">${fc(r.sum.total)}</td></tr>`).join('') || `<tr><td colspan="${tariffs.length + 6}" class="muted">Aucune vente</td></tr>`}
+          <tr class="total"><td>Total</td>${tariffs.map(t => `<td class="num">${tot.byTariff[t.label]?.count || 0}</td>`).join('')}<td class="num">${tot.clients}</td><td class="num">${fc(tot.cash)}</td><td class="num">${fc(tot.mm)}</td><td class="num">${tot.free}</td><td class="num">${fc(tot.total)}</td></tr>
+          </tbody></table></div>
+      </div>`;
   }
 
   function renderReport() {
@@ -612,6 +651,7 @@
           <button class="btn" id="repCopy">📋 Copier</button>
         </div>
       </div>
+      ${isManager() ? sellerCard(st) : ''}
       <div class="card stack">
         <h2>Signaler un incident</h2>
         <form id="incForm" class="row">
@@ -632,6 +672,7 @@
 
     wireAlert(st.zoneId);
     $('#repDay').addEventListener('change', e => { st.day = e.target.value || today(); renderReport(); });
+    $('#repPer')?.addEventListener('change', e => { st.per = e.target.value; renderReport(); });
     view.querySelector('select[name=repZone]')?.addEventListener('change', e => { st.zoneId = e.target.value; renderReport(); });
     $('#repShare').onclick = () => shareText(reportText(st.day, st.zoneId), isManager() ? '' : managerPhone());
     $('#repCopy').onclick = () => copyText(reportText(st.day, st.zoneId));
